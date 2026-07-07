@@ -50,7 +50,7 @@ service cloud.firestore {
 
     match /attendance/{docId} {
       allow read: if isAuthenticated();
-      allow create: if isTeacher() || isMentor();
+      allow create: if isAuthenticated();
       allow update: if isPrincipal();
     }
 
@@ -138,7 +138,7 @@ service cloud.firestore {
 
     match /mentorAttendance/{docId} {
       allow read: if isAuthenticated();
-      allow create: if isMentor();
+      allow create: if isAuthenticated();
       allow update: if isPrincipal();
     }
 
