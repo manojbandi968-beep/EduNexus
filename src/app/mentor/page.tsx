@@ -30,6 +30,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { createDocument, COLLECTIONS } from '@/lib/firebase/firestore';
+import { getSocket } from '@/lib/socket/client';
+import { SOCKET_EVENTS } from '@/lib/socket/events';
 
 // Mock data
 const previousSessions = [
@@ -66,6 +70,7 @@ const announcements = [
 
 export default function MentorDashboard() {
   const router = useRouter();
+  const { user } = useAuth();
   const [checkedIn, setCheckedIn] = useState<{ 1: boolean; 2: boolean }>({ 1: false, 2: false });
   const [sessionForm, setSessionForm] = useState({
     topic: '',
@@ -81,11 +86,36 @@ export default function MentorDashboard() {
   const isStudyHour2 = currentHour >= 20 && currentHour < 22;
   const currentStudyHour = isStudyHour1 ? 1 : isStudyHour2 ? 2 : null;
 
-  const handleCheckIn = (studyHour: 1 | 2) => {
-    setCheckedIn(prev => ({ ...prev, [studyHour]: true }));
-    toast.success(`Checked in for Study Hour ${studyHour}!`, {
-      description: `Session started at ${new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}`,
-    });
+  const handleCheckIn = async (studyHour: 1 | 2) => {
+    const checkInTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+    const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+
+    try {
+      await createDocument(COLLECTIONS.MENTOR_ATTENDANCE, {
+        mentorId: user?.uid || '',
+        mentorName: user?.displayName || 'Unknown',
+        email: user?.email || '',
+        studyHour,
+        checkIn: checkInTime,
+        date: dateStr,
+        timestamp: new Date().toISOString(),
+      });
+
+      try {
+        const socket = getSocket();
+        socket.emit(SOCKET_EVENTS.ATTENDANCE_UPDATED, { teacherName: user?.displayName, status: 'present', time: checkInTime });
+      } catch {
+        // Socket is non-critical
+      }
+
+      setCheckedIn(prev => ({ ...prev, [studyHour]: true }));
+      toast.success(`Checked in for Study Hour ${studyHour}!`, {
+        description: `Session started at ${checkInTime}`,
+      });
+    } catch (error) {
+      console.error('Check-in error:', error);
+      toast.error('Failed to check in. Please try again.');
+    }
   };
 
   const handleLogSession = () => {
@@ -98,7 +128,7 @@ export default function MentorDashboard() {
   };
 
   return (
-    <DashboardLayout role="mentor" userName="Mr. Suresh Babu" userEmail="suresh@college.edu">
+    <DashboardLayout role="mentor">
       <div className="space-y-6 pb-20 lg:pb-8">
         {/* Header */}
         <PageHeader

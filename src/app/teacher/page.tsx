@@ -75,14 +75,19 @@ export default function TeacherDashboard() {
         timestamp: new Date().toISOString(),
       });
 
-      const socket = getSocket();
-      socket.emit(SOCKET_EVENTS.ATTENDANCE_UPDATED, { teacherName: user?.displayName, status, time: checkInTime });
+      try {
+        const socket = getSocket();
+        socket.emit(SOCKET_EVENTS.ATTENDANCE_UPDATED, { teacherName: user?.displayName, status, time: checkInTime });
+      } catch {
+        // Socket is non-critical
+      }
 
       setAttendanceMarked(true);
       toast.success('Attendance marked successfully! 🎉', {
         description: 'Location: Campus (within geofence)',
       });
-    } catch {
+    } catch (error) {
+      console.error('Attendance error:', error);
       toast.error('Failed to mark attendance. Please try again.');
     }
   };
