@@ -36,7 +36,7 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { createDocument, getDocuments, COLLECTIONS } from '@/lib/firebase/firestore';
+import { createDocument, getDocuments, updateDocument, whereClause, COLLECTIONS } from '@/lib/firebase/firestore';
 import { getSocket, useSocket, useSocketEvent } from '@/lib/socket/client';
 import { SOCKET_EVENTS } from '@/lib/socket/events';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -299,29 +299,73 @@ export default function MentorDashboard() {
     );
   };
 
-  const handleLogSession = () => {
+  const handleLogSession = async () => {
     if (!sessionForm.topic || !sessionForm.studentCount) {
       toast.error('Please fill in topic and student count');
       return;
     }
     
-    const socket = getSocket();
-    if (socket) {
-      socket.emit(SOCKET_EVENTS.TEACHER_LOG_SESSION, {
-        mentorId: user?.uid || 'unknown',
-        mentorName: user?.displayName || 'Mentor',
-        studyHour: 1, // Or get from state if applicable
-        topic: sessionForm.topic,
-        notes: sessionForm.notes,
-        studentCount: parseInt(sessionForm.studentCount) || 0,
-        date: new Date().toISOString().split('T')[0],
-        checkInTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-        timestamp: Date.now()
-      });
-    }
+    // Determine current study hour for fallback
+    const isStudyHour1 = currentHour >= 17 && currentHour < 20;
+    const isStudyHour2 = currentHour >= 20 && currentHour < 22;
+    const currentStudyHour = isStudyHour1 ? 1 : isStudyHour2 ? 2 : 1;
     
-    toast.success('Session logged successfully! 📝');
-    setSessionForm({ topic: '', notes: '', studentCount: '' });
+    try {
+      toast.info('Saving session...', { id: 'save-session' });
+      const dateStr = new Date().toLocaleDateString('en-CA');
+      
+      const records = await getDocuments(COLLECTIONS.MENTOR_ATTENDANCE, [
+         whereClause('mentorId', '==', user?.uid),
+         whereClause('date', '==', dateStr),
+         whereClause('studyHour', '==', currentStudyHour)
+      ]);
+      
+      const studentCount = parseInt(sessionForm.studentCount) || 0;
+      
+      if (records.length > 0) {
+         const record = records[0] as { id: string };
+         await updateDocument(COLLECTIONS.MENTOR_ATTENDANCE, record.id, {
+            topic: sessionForm.topic,
+            notes: sessionForm.notes,
+            studentCount: studentCount
+         });
+      } else {
+         await createDocument(COLLECTIONS.MENTOR_ATTENDANCE, {
+            mentorId: user?.uid || '',
+            mentorName: user?.displayName || 'Unknown',
+            email: user?.email || '',
+            studyHour: currentStudyHour,
+            date: dateStr,
+            topic: sessionForm.topic,
+            notes: sessionForm.notes,
+            studentCount: studentCount,
+            checkIn: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            inCollege: false,
+         });
+      }
+
+      const socket = getSocket();
+      if (socket) {
+        socket.emit(SOCKET_EVENTS.TEACHER_LOG_SESSION, {
+          mentorId: user?.uid || 'unknown',
+          mentorName: user?.displayName || 'Mentor',
+          studyHour: currentStudyHour,
+          topic: sessionForm.topic,
+          notes: sessionForm.notes,
+          studentCount: studentCount,
+          date: new Date().toISOString().split('T')[0],
+          checkInTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          timestamp: Date.now()
+        });
+      }
+      
+      queryClient.invalidateQueries({ queryKey: ['mentor-dashboard'] });
+      toast.success('Session logged successfully! 📝', { id: 'save-session' });
+      setSessionForm({ topic: '', notes: '', studentCount: '' });
+    } catch (error) {
+      console.error('Error saving session:', error);
+      toast.error('Failed to save session.', { id: 'save-session' });
+    }
   };
 
   return (
