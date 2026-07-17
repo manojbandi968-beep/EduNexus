@@ -40,7 +40,7 @@ import { getSocket, useSocket, useSocketEvent } from '@/lib/socket/client';
 import { SOCKET_EVENTS } from '@/lib/socket/events';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import type { CollegeEvent } from '@/types';
+import type { CollegeEvent, TeacherDashboardData } from '@/types';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -55,42 +55,6 @@ function timeAgo(timestamp: string): string {
   if (hours < 24) return `${hours} hrs ago`;
   const days = Math.floor(hours / 24);
   return `${days} day${days > 1 ? 's' : ''} ago`;
-}
-
-interface TeacherDashboardData {
-  stats: {
-    attendancePercent: number;
-    todayClasses: number;
-    completedClasses: number;
-    upcomingClasses: number;
-    totalQuizzes: number;
-    avgQuizScore: number;
-    pendingLeaves: number;
-    assignedSections: number;
-  };
-  attendanceChartData: { date: string; status: 'present' | 'late' | 'absent' | 'none' }[];
-  quizChartData: { subject: string; average: number; quizCount: number }[];
-  todaySchedule: {
-    period: string;
-    time: string;
-    subject: string;
-    section: string;
-    room: string;
-    status: 'completed' | 'current' | 'upcoming';
-  }[];
-  recentQuizzes: {
-    name: string;
-    section: string;
-    date: string;
-    avg: number;
-    students: number;
-  }[];
-  announcements: {
-    title: string;
-    type: string;
-    time: string;
-  }[];
-  teacherName: string;
 }
 
 export default function TeacherDashboard() {
@@ -179,7 +143,7 @@ export default function TeacherDashboard() {
   const handleMarkAttendance = async () => {
     const checkInTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const status = new Date().getHours() < 9 ? 'present' : 'late';
-    const dateStr = new Date().toISOString().split('T')[0]; // Standardize to YYYY-MM-DD for Principal API queries
+    const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
 
     try {
       await createDocument(COLLECTIONS.ATTENDANCE, {
@@ -187,7 +151,7 @@ export default function TeacherDashboard() {
         teacherName: user?.displayName || 'Unknown',
         email: user?.email || '',
         status,
-        checkIn: checkInTime,
+        checkInTime: checkInTime,
         date: dateStr,
         timestamp: new Date().toISOString(),
       });

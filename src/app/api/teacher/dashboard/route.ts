@@ -10,9 +10,14 @@ export async function GET() {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    const today = new Date().toISOString().split('T')[0];
-    const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    const monthAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const getLocalTime = (offsetMs = 0) => {
+      const d = new Date(Date.now() - offsetMs);
+      return d.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    };
+
+    const today = getLocalTime(0);
+    const weekAgo = getLocalTime(7 * 24 * 60 * 60 * 1000);
+    const monthAgo = getLocalTime(30 * 24 * 60 * 60 * 1000);
 
     const [
       teacherDoc,
@@ -155,7 +160,7 @@ export async function GET() {
     });
 
     const isAttendanceMarkedToday = todayAttendance.length > 0;
-    const checkInTimeToday = todayAttendance.length > 0 ? todayAttendance[0].checkIn : null;
+    const checkInTimeToday = todayAttendance.length > 0 ? (todayAttendance[0].checkInTime || todayAttendance[0].checkIn) : null;
 
     return NextResponse.json({
       stats,

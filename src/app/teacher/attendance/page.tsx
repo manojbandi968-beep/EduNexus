@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   ClipboardCheck,
@@ -17,30 +17,13 @@ import { Badge } from '@/components/ui/badge';
 import { StatCard } from '@/components/ui/stat-card';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { createDocument, COLLECTIONS } from '@/lib/firebase/firestore';
-import { useSocket, useSocketEvent, getSocket } from '@/lib/socket/client';
+import { createDocument, getDocuments, whereClause, COLLECTIONS } from '@/lib/firebase/firestore';
+import { useSocket, getSocket } from '@/lib/socket/client';
 import { SOCKET_EVENTS } from '@/lib/socket/events';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { TeacherDashboardData } from '@/types';
+import type { TeacherDashboardData, TeacherAttendance } from '@/types';
 
-interface AttendanceRecord {
-  date: string;
-  day: string;
-  status: 'present' | 'late' | 'absent';
-  checkIn: string;
-  duration?: string;
-}
-
-const history: AttendanceRecord[] = [
-  { date: 'Jul 5', day: 'Sat', status: 'present', checkIn: '7:45 AM', duration: '8h 15m' },
-  { date: 'Jul 4', day: 'Fri', status: 'present', checkIn: '7:50 AM', duration: '8h 10m' },
-  { date: 'Jul 3', day: 'Thu', status: 'late', checkIn: '9:10 AM', duration: '6h 50m' },
-  { date: 'Jul 2', day: 'Wed', status: 'present', checkIn: '7:55 AM', duration: '8h 5m' },
-  { date: 'Jul 1', day: 'Tue', status: 'present', checkIn: '7:40 AM', duration: '8h 20m' },
-  { date: 'Jun 30', day: 'Mon', status: 'present', checkIn: '7:48 AM', duration: '8h 12m' },
-];
-
-export default function TeacherAttendance() {
+export default function TeacherAttendancePage() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const socket = useSocket();
@@ -50,11 +33,34 @@ export default function TeacherAttendance() {
     queryFn: () => fetch('/api/teacher/dashboard').then((r) => r.json()),
   });
 
+  const [history, setHistory] = useState<TeacherAttendance[]>([]);
+  const [loading, setLoading] = useState(true);
+
   const marked = dashboardData?.isAttendanceMarkedToday || false;
   const checkInTime = dashboardData?.checkInTimeToday || '--:--';
 
+  useEffect(() => {
+    if (!user) return;
+    const fetchHistory = async () => {
+      try {
+        const records = await getDocuments<TeacherAttendance>(COLLECTIONS.ATTENDANCE, [
+          whereClause('teacherId', '==', user.uid)
+        ]);
+        records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setHistory(records);
+      } catch (err) {
+        console.error('Failed to fetch teacher attendance', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchHistory();
+  }, [user]);
+
   const present = history.filter(h => h.status === 'present').length;
   const late = history.filter(h => h.status === 'late').length;
+  const totalThisMonth = history.filter(h => h.date.startsWith(new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }).slice(0, 7))).length;
+  const attendancePercent = history.length > 0 ? Math.round(((present + late) / history.length) * 100) : 0;
 
   const handleMark = async () => {
     if (!navigator.geolocation) {
@@ -68,22 +74,19 @@ export default function TeacherAttendance() {
       async (position) => {
         const { latitude, longitude } = position.coords;
         
-        // Mock College Location (e.g. Hyderabad)
         const COLLEGE_LAT = 17.3850;
         const COLLEGE_LNG = 78.4867;
-        
-        // Simple distance calculation (Euclidean for mocking)
         const distance = Math.sqrt(Math.pow(latitude - COLLEGE_LAT, 2) + Math.pow(longitude - COLLEGE_LNG, 2));
-        const isInsideCollege = distance < 0.05; // ~5km radius for testing
+        const isInsideCollege = distance < 0.05;
 
         toast.dismiss('location-toast');
 
         const status = new Date().getHours() < 9 ? 'present' : 'late';
-        const dateStr = new Date().toLocaleDateString('en-CA');
+        const dateStr = new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
         const currentCheckInTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
         try {
-          await createDocument(COLLECTIONS.ATTENDANCE, {
+          const data = {
             teacherId: user?.uid || '',
             teacherName: user?.displayName || 'Unknown',
             email: user?.email || '',
@@ -93,7 +96,10 @@ export default function TeacherAttendance() {
             location: { lat: latitude, lng: longitude },
             inCollege: isInsideCollege,
             timestamp: new Date().toISOString(),
-          });
+          };
+          
+          const id = await createDocument(COLLECTIONS.ATTENDANCE, data);
+          setHistory(prev => [{ id, ...data } as unknown as TeacherAttendance, ...prev]);
 
           await createDocument(COLLECTIONS.AUDIT_LOGS, {
             action: 'attendance',
@@ -106,8 +112,8 @@ export default function TeacherAttendance() {
             updatedAt: new Date().toISOString(),
           });
 
-          const socket = getSocket();
-          socket.emit(SOCKET_EVENTS.TEACHER_MARK_ATTENDANCE, {
+          const socketInstance = getSocket();
+          socketInstance.emit(SOCKET_EVENTS.TEACHER_MARK_ATTENDANCE, {
             teacherName: user?.displayName || 'Unknown',
             teacherId: user?.uid || '',
             status,
@@ -132,15 +138,15 @@ export default function TeacherAttendance() {
   };
 
   return (
-    <DashboardLayout role="teacher" userName="Dr. Ramesh Kumar" userEmail="ramesh@college.edu">
+    <DashboardLayout role="teacher">
       <div className="space-y-6 pb-20 lg:pb-8">
         <PageHeader title="Attendance" description="Mark your daily attendance" />
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard title="This Month" value={history.length} icon={<ClipboardCheck className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
+          <StatCard title="This Month" value={totalThisMonth} icon={<ClipboardCheck className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
           <StatCard title="Present" value={present} icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.1} />
           <StatCard title="Late" value={late} icon={<Clock className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.2} />
-          <StatCard title="Attendance %" value="96.2%" icon={<ClipboardCheck className="h-5 w-5 text-violet-500" />} iconBg="bg-violet-500/10" delay={0.3} />
+          <StatCard title="Attendance %" value={`${attendancePercent}%`} icon={<ClipboardCheck className="h-5 w-5 text-violet-500" />} iconBg="bg-violet-500/10" delay={0.3} />
         </div>
 
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -179,9 +185,8 @@ export default function TeacherAttendance() {
                 {marked && (
                   <div className="mt-3 space-y-1">
                     <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
-                      <Clock className="mr-1 h-3 w-3" />{checkInTime} — Present
+                      <Clock className="mr-1 h-3 w-3" />{checkInTime} — Marked
                     </Badge>
-                    <p className="text-xs text-muted-foreground">📍 Within campus geofence</p>
                   </div>
                 )}
               </div>
@@ -195,34 +200,51 @@ export default function TeacherAttendance() {
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
-                {history.map((record, i) => (
-                  <motion.div
-                    key={i}
-                    initial={{ x: -10, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    transition={{ delay: i * 0.05 }}
-                    className="flex items-center justify-between rounded-xl bg-muted/30 p-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`h-3 w-3 rounded-full ${record.status === 'present' ? 'bg-emerald-500' : record.status === 'late' ? 'bg-amber-500' : 'bg-red-500'}`} />
-                      <div>
-                        <p className="text-sm font-medium">{record.date}</p>
-                        <p className="text-xs text-muted-foreground">{record.day}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{record.checkIn}</span>
-                      {record.duration && <span className="flex items-center gap-1"><Timer className="h-3 w-3" />{record.duration}</span>}
-                      <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${
-                        record.status === 'present' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
-                        record.status === 'late' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' :
-                        'bg-red-500/10 text-red-600 border-red-500/20'
-                      }`}>
-                        {record.status}
-                      </Badge>
-                    </div>
-                  </motion.div>
-                ))}
+                {loading ? (
+                  <div className="flex justify-center p-8 text-muted-foreground">Loading history...</div>
+                ) : history.length > 0 ? (
+                  history.slice(0, 6).map((record, i) => {
+                    // Attempt to parse day name safely
+                    let dayName = 'Day';
+                    try {
+                       dayName = new Date(record.date).toLocaleDateString('en-US', { weekday: 'short' });
+                    } catch (e) {}
+
+                    return (
+                      <motion.div
+                        key={record.id || i}
+                        initial={{ x: -10, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="flex items-center justify-between rounded-xl bg-muted/30 p-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`h-3 w-3 rounded-full ${record.status === 'present' ? 'bg-emerald-500' : record.status === 'late' ? 'bg-amber-500' : 'bg-red-500'}`} />
+                          <div>
+                            <p className="text-sm font-medium">{record.date}</p>
+                            <p className="text-xs text-muted-foreground">{dayName}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {/* @ts-ignore - checkIn might exist in DB but not type */}
+                            {record.checkInTime || record.checkIn || '--:--'}
+                          </span>
+                          <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${
+                            record.status === 'present' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20' :
+                            record.status === 'late' ? 'bg-amber-500/10 text-amber-600 border-amber-500/20' :
+                            'bg-red-500/10 text-red-600 border-red-500/20'
+                          }`}>
+                            {record.status}
+                          </Badge>
+                        </div>
+                      </motion.div>
+                    );
+                  })
+                ) : (
+                  <div className="flex justify-center p-8 text-muted-foreground">No history found</div>
+                )}
               </div>
             </CardContent>
           </Card>
