@@ -119,7 +119,6 @@ export const PRINCIPAL_NAV_ITEMS: NavItem[] = [
   { label: 'Quizzes', href: '/principal/quizzes', icon: 'FileQuestion' },
   { label: 'Leave Requests', href: '/principal/leave', icon: 'CalendarOff' },
   { label: 'Announcements', href: '/principal/announcements', icon: 'Megaphone' },
-  { label: 'Reports', href: '/principal/reports', icon: 'BarChart3' },
   { label: 'Calendar', href: '/principal/calendar', icon: 'CalendarDays' },
   { label: 'Audit Logs', href: '/principal/audit-logs', icon: 'Shield' },
   { label: 'Campus Map', href: '/principal/campus', icon: 'Map' },
