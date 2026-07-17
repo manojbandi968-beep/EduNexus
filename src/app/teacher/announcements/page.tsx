@@ -61,6 +61,12 @@ export default function TeacherAnnouncements() {
   useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_CREATED : '', () => {
     queryClient.invalidateQueries({ queryKey: ['announcements', 'teacher'] });
   });
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_UPDATED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['announcements', 'teacher'] });
+  });
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_DELETED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['announcements', 'teacher'] });
+  });
 
   const filtered = announcements.filter((a: Announcement) =>
     a.title.toLowerCase().includes(search.toLowerCase()) || a.content.toLowerCase().includes(search.toLowerCase())

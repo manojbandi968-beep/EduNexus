@@ -9,6 +9,8 @@ export const SOCKET_EVENTS = {
 
   // Principal -> Server
   PRINCIPAL_CREATE_ANNOUNCEMENT: 'principal:create-announcement',
+  PRINCIPAL_UPDATE_ANNOUNCEMENT: 'principal:update-announcement',
+  PRINCIPAL_DELETE_ANNOUNCEMENT: 'principal:delete-announcement',
   PRINCIPAL_APPROVE_LEAVE: 'principal:approve-leave',
   PRINCIPAL_REJECT_LEAVE: 'principal:reject-leave',
   PRINCIPAL_ASSIGN_TASK: 'principal:assign-task',

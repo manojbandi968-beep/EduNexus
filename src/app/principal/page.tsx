@@ -233,8 +233,18 @@ export default function PrincipalDashboard() {
       userRole: 'principal',
       action: `Published announcement: ${payload.title}`,
       details: `Announcement: ${payload.title}`,
-      timestamp: payload.timestamp.toString(),
+      timestamp: new Date().toISOString(),
     });
+  });
+
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_UPDATED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+    queryClient.invalidateQueries({ queryKey: ['announcements'] });
+  });
+
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_DELETED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['dashboard-data'] });
+    queryClient.invalidateQueries({ queryKey: ['announcements'] });
   });
 
   useSocketEvent(socket ? SOCKET_EVENTS.TASK_ASSIGNED : '', (payload: any) => {

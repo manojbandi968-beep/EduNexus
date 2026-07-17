@@ -61,6 +61,12 @@ export default function MentorAnnouncements() {
   useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_CREATED : '', () => {
     queryClient.invalidateQueries({ queryKey: ['announcements', 'mentor'] });
   });
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_UPDATED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['announcements', 'mentor'] });
+  });
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_DELETED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['announcements', 'mentor'] });
+  });
 
   const filtered = announcements.filter((a: Announcement) =>
     a.title.toLowerCase().includes(search.toLowerCase()) || a.content.toLowerCase().includes(search.toLowerCase())

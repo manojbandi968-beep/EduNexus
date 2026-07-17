@@ -94,6 +94,12 @@ export default function AnnouncementsPage() {
   useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_CREATED : '', () => {
     queryClient.invalidateQueries({ queryKey: ['announcements'] });
   });
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_UPDATED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['announcements'] });
+  });
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_DELETED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['announcements'] });
+  });
 
   const filtered = announcements.filter((a: Announcement) => a.title.toLowerCase().includes(search.toLowerCase()));
 
@@ -125,8 +131,23 @@ export default function AnnouncementsPage() {
       };
 
       if (editing) {
-        // Implement edit if needed later. Currently we'll just show success toast.
+        const response = await fetch(`/api/announcements/${editing.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        if (!response.ok) throw new Error('Failed to update announcement');
+        
+        queryClient.invalidateQueries({ queryKey: ['announcements'] });
         toast.success('Announcement updated');
+        
+        if (socket) {
+          socket.emit(SOCKET_EVENTS.PRINCIPAL_UPDATE_ANNOUNCEMENT, {
+            ...editing,
+            ...payload,
+            updatedAt: new Date().toISOString(),
+          });
+        }
       } else {
         const response = await fetch('/api/announcements', {
           method: 'POST',
@@ -152,13 +173,30 @@ export default function AnnouncementsPage() {
       }
       setDialogOpen(false);
     } catch (error) {
-      toast.error('Failed to save announcement');
+      toast.error(editing ? 'Failed to update announcement' : 'Failed to save announcement');
     }
   };
 
-  const handleDelete = (id: string) => {
-    // Implement delete if needed later. Currently just a toast placeholder.
-    toast.success('Announcement deleted');
+  const handleDelete = async (ann: Announcement) => {
+    if (!confirm('Are you sure you want to delete this announcement?')) return;
+    try {
+      const response = await fetch(`/api/announcements/${ann.id}`, {
+        method: 'DELETE',
+      });
+      if (!response.ok) throw new Error('Failed to delete announcement');
+      
+      queryClient.invalidateQueries({ queryKey: ['announcements'] });
+      toast.success('Announcement deleted');
+      
+      if (socket) {
+        socket.emit(SOCKET_EVENTS.PRINCIPAL_DELETE_ANNOUNCEMENT, {
+          id: ann.id,
+          targetRoles: ann.targetRoles,
+        });
+      }
+    } catch (error) {
+      toast.error('Failed to delete announcement');
+    }
   };
 
   return (
@@ -221,7 +259,7 @@ export default function AnnouncementsPage() {
                           <DropdownMenuItem className="gap-2 rounded-lg text-xs" onClick={() => setDetail(ann)}><Eye className="h-3.5 w-3.5" />View</DropdownMenuItem>
                           <DropdownMenuItem className="gap-2 rounded-lg text-xs" onClick={() => { setEditing(ann); setForm({ title: ann.title, content: ann.content, type: ann.type, targetRoles: ann.targetRoles, targetStreams: ann.targetStreams || [], expiresAt: '' }); setDialogOpen(true); }}><Pencil className="h-3.5 w-3.5" />Edit</DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="gap-2 rounded-lg text-xs text-destructive" onClick={() => handleDelete(ann.id)}><Trash2 className="h-3.5 w-3.5" />Delete</DropdownMenuItem>
+                          <DropdownMenuItem className="gap-2 rounded-lg text-xs text-destructive" onClick={() => handleDelete(ann)}><Trash2 className="h-3.5 w-3.5" />Delete</DropdownMenuItem>
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>

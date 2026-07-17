@@ -147,6 +147,18 @@ app.prepare().then(() => {
       });
     });
 
+    socket.on(SOCKET_EVENTS.PRINCIPAL_UPDATE_ANNOUNCEMENT, (payload: AnnouncementPayload) => {
+      payload.targetRoles.forEach((role) => {
+        io.to(role).emit(SOCKET_EVENTS.ANNOUNCEMENT_UPDATED, payload);
+      });
+    });
+
+    socket.on(SOCKET_EVENTS.PRINCIPAL_DELETE_ANNOUNCEMENT, (payload: { id: string; targetRoles: string[] }) => {
+      payload.targetRoles.forEach((role) => {
+        io.to(role).emit(SOCKET_EVENTS.ANNOUNCEMENT_DELETED, { id: payload.id });
+      });
+    });
+
     socket.on(SOCKET_EVENTS.PRINCIPAL_APPROVE_LEAVE, (payload: LeaveStatusPayload) => {
       io.to('principal').emit(SOCKET_EVENTS.LEAVE_APPROVED, payload);
       io.to(`user-${payload.teacherId}`).emit(SOCKET_EVENTS.LEAVE_APPROVED, payload);

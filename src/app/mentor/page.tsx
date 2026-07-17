@@ -140,6 +140,12 @@ export default function MentorDashboard() {
   useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_CREATED : '', () => {
     queryClient.invalidateQueries({ queryKey: ['mentor-dashboard'] });
   });
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_UPDATED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['mentor-dashboard'] });
+  });
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_DELETED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['mentor-dashboard'] });
+  });
 
   useSocketEvent(socket ? SOCKET_EVENTS.EVENT_CREATED : '', (payload: any) => {
     toast.info(`New ${payload.type} declared: ${payload.title}`, {
