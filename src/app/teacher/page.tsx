@@ -166,7 +166,7 @@ export default function TeacherDashboard() {
   const handleMarkAttendance = async () => {
     const checkInTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
     const status = new Date().getHours() < 9 ? 'present' : 'late';
-    const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    const dateStr = new Date().toISOString().split('T')[0]; // Standardize to YYYY-MM-DD for Principal API queries
 
     try {
       await createDocument(COLLECTIONS.ATTENDANCE, {
