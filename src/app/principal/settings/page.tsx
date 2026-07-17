@@ -13,9 +13,12 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { updateDocument, COLLECTIONS } from '@/lib/firebase/firestore';
+import { db } from '@/lib/firebase/config';
+import { doc, setDoc } from 'firebase/firestore';
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, updateUserDisplayName } = useAuth();
   const [profile, setProfile] = useState({
     name: user?.displayName || '',
     email: user?.email || '',
@@ -46,8 +49,29 @@ export default function SettingsPage() {
     }));
   };
 
-  const handleSave = () => {
-    toast.success('Settings saved successfully');
+  const handleSave = async () => {
+    if (!user?.uid) return;
+    try {
+      if (profile.name !== user.displayName) {
+        await updateUserDisplayName(profile.name.trim());
+      }
+      
+      await updateDocument(COLLECTIONS.USERS, user.uid, {
+        displayName: profile.name.trim(),
+        phone: profile.phone,
+      });
+
+      const settingsRef = doc(db, COLLECTIONS.SETTINGS, 'general');
+      await setDoc(settingsRef, {
+        ...form,
+        updatedAt: new Date().toISOString(),
+      }, { merge: true });
+
+      toast.success('Settings saved successfully');
+    } catch (error) {
+      console.error(error);
+      toast.error('Failed to save settings');
+    }
   };
 
   return (

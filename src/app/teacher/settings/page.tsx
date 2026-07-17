@@ -13,6 +13,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
+import { updateDocument, COLLECTIONS } from '@/lib/firebase/firestore';
 
 export default function TeacherSettings() {
   const { user, updateUserDisplayName } = useAuth();
@@ -26,10 +27,18 @@ export default function TeacherSettings() {
   });
 
   const handleSave = async () => {
+    if (!user?.uid) return;
     try {
-      await updateUserDisplayName(profile.name.trim());
+      if (profile.name !== user.displayName) {
+        await updateUserDisplayName(profile.name.trim());
+      }
+      await updateDocument(COLLECTIONS.USERS, user.uid, {
+        displayName: profile.name.trim(),
+        phone: profile.phone,
+      });
       toast.success('Profile updated successfully');
-    } catch {
+    } catch (error) {
+      console.error(error);
       toast.error('Failed to update profile');
     }
   };
