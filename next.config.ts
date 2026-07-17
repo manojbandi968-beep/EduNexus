@@ -1,9 +1,7 @@
 import type { NextConfig } from "next";
 
-const nextConfig: NextConfig | any = {
-  reactCompiler: true,
+const nextConfig: NextConfig = {
   experimental: {
-    turbopackFileSystemCacheForDev: true,
     serverActions: {
       bodySizeLimit: '2mb',
     },
