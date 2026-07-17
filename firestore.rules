@@ -139,7 +139,7 @@ service cloud.firestore {
     match /mentorAttendance/{docId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
-      allow update: if isPrincipal();
+      allow update: if isPrincipal() || (isAuthenticated() && resource.data.mentorId == request.auth.uid);
     }
 
     // ----- Login Attempts -----

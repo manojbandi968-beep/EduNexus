@@ -248,7 +248,7 @@ export default function MentorDashboard() {
             mentorName: user?.displayName || 'Unknown',
             email: user?.email || '',
             studyHour,
-            checkIn: checkInTime,
+            checkInTime: checkInTime,
             date: dateStr,
             location: { lat: latitude, lng: longitude },
             inCollege: isInsideCollege,
@@ -339,7 +339,7 @@ export default function MentorDashboard() {
             topic: sessionForm.topic,
             notes: sessionForm.notes,
             studentCount: studentCount,
-            checkIn: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            checkInTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
             inCollege: false,
          });
       }

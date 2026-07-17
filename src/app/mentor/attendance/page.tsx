@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import {
   ClipboardCheck,
@@ -29,33 +29,61 @@ import {
 } from '@/components/ui/select';
 import { StatCard } from '@/components/ui/stat-card';
 import { toast } from 'sonner';
-import { markAttendance } from '@/lib/data-store';
+import { useAuth } from '@/contexts/AuthContext';
+import { getDocuments, createDocument, updateDocument, whereClause, orderByClause, COLLECTIONS } from '@/lib/firebase/firestore';
 import type { MentorAttendance } from '@/types';
 
-const history: MentorAttendance[] = [
-  { id: '1', mentorId: 'm1', mentorName: 'Mr. Suresh Babu', date: '2025-07-04', studyHour: 1, checkInTime: '17:32', topic: 'Organic Chemistry - Hydrocarbons', studentCount: 45, notes: 'Covered alkanes and alkenes', duration: 120, sectionId: 'MPC-A', createdAt: '2025-07-04T17:32:00Z', updatedAt: '2025-07-04T17:32:00Z' },
-  { id: '2', mentorId: 'm1', mentorName: 'Mr. Suresh Babu', date: '2025-07-03', studyHour: 2, checkInTime: '20:15', topic: 'Physics - Wave Optics', studentCount: 42, notes: 'Doubt session on diffraction', duration: 90, sectionId: 'MPC-B', createdAt: '2025-07-03T20:15:00Z', updatedAt: '2025-07-03T20:15:00Z' },
-  { id: '3', mentorId: 'm1', mentorName: 'Mr. Suresh Babu', date: '2025-07-02', studyHour: 1, checkInTime: '17:30', topic: 'Mathematics - Differential Equations', studentCount: 48, duration: 120, sectionId: 'MPC-A', createdAt: '2025-07-02T17:30:00Z', updatedAt: '2025-07-02T17:30:00Z' },
-  { id: '4', mentorId: 'm1', mentorName: 'Mr. Suresh Babu', date: '2025-07-01', studyHour: 1, checkInTime: '17:28', topic: 'Chemistry - Periodic Table', studentCount: 44, notes: 'Students struggled with periodic trends', duration: 120, sectionId: 'BiPC-A', createdAt: '2025-07-01T17:28:00Z', updatedAt: '2025-07-01T17:28:00Z' },
-];
-
-export default function MentorAttendance() {
+export default function MentorAttendancePage() {
+  const { user } = useAuth();
   const [checkedIn, setCheckedIn] = useState(false);
   const [search, setSearch] = useState('');
   const [form, setForm] = useState({ topic: '', notes: '', studentCount: '' });
   const [manualSH, setManualSH] = useState<string>('');
+  const [history, setHistory] = useState<MentorAttendance[]>([]);
+  const [loading, setLoading] = useState(true);
 
   const currentHour = new Date().getHours();
   const isStudyHour1 = currentHour >= 17 && currentHour < 20;
   const isStudyHour2 = currentHour >= 20 && currentHour < 22;
   const autoSH = isStudyHour1 ? '1' : isStudyHour2 ? '2' : '';
   const selectedSH = manualSH || autoSH;
+  
+  const todayDateStr = new Date().toLocaleDateString('en-CA');
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const fetchHistory = async () => {
+      try {
+        const records = await getDocuments<MentorAttendance>(COLLECTIONS.MENTOR_ATTENDANCE, [
+          whereClause('mentorId', '==', user.uid)
+        ]);
+        
+        // Sort by date and checkInTime descending
+        records.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setHistory(records);
+        
+        // See if already checked in today for current study hour
+        if (selectedSH) {
+          const alreadyCheckedIn = records.some(r => r.date === todayDateStr && String(r.studyHour) === selectedSH);
+          setCheckedIn(alreadyCheckedIn);
+        }
+      } catch (err) {
+        console.error('Failed to fetch mentor attendance', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchHistory();
+  }, [user, selectedSH, todayDateStr]);
 
   const filtered = history.filter(h =>
-    h.topic.toLowerCase().includes(search.toLowerCase()) || h.date.includes(search)
+    h.topic?.toLowerCase().includes(search.toLowerCase()) || h.date.includes(search)
   );
 
-  const handleCheckIn = () => {
+  const handleCheckIn = async () => {
+    if (!user) return;
     if (!form.topic || !form.studentCount) {
       toast.error('Please fill in topic and student count');
       return;
@@ -64,26 +92,67 @@ export default function MentorAttendance() {
       toast.error('Please select a study hour');
       return;
     }
-    setCheckedIn(true);
-    markAttendance({
-      teacherName: `Mr. Suresh Babu (Mentor)`,
-      status: 'present',
-      time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-      date: new Date().toISOString().split('T')[0],
-    });
-    toast.success(`Checked in for Study Hour ${selectedSH}!`);
+    
+    const studentCount = parseInt(form.studentCount) || 0;
+    
+    try {
+      toast.info('Checking in...', { id: 'checkin' });
+      
+      const records = await getDocuments<MentorAttendance>(COLLECTIONS.MENTOR_ATTENDANCE, [
+         whereClause('mentorId', '==', user?.uid),
+         whereClause('date', '==', todayDateStr),
+         whereClause('studyHour', '==', parseInt(selectedSH))
+      ]);
+      
+      let newRecord;
+      if (records.length > 0) {
+         const existing = records[0] as { id: string };
+         await updateDocument(COLLECTIONS.MENTOR_ATTENDANCE, existing.id, {
+            topic: form.topic,
+            notes: form.notes,
+            studentCount: studentCount
+         });
+         newRecord = { ...records[0], topic: form.topic, notes: form.notes, studentCount } as MentorAttendance;
+      } else {
+         const data = {
+            mentorId: user.uid,
+            mentorName: user.displayName || 'Unknown',
+            email: user.email || '',
+            studyHour: parseInt(selectedSH) as 1 | 2,
+            date: todayDateStr,
+            topic: form.topic,
+            notes: form.notes,
+            studentCount: studentCount,
+            checkInTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+            inCollege: false,
+         };
+         const id = await createDocument(COLLECTIONS.MENTOR_ATTENDANCE, data);
+         newRecord = { id, ...data } as unknown as MentorAttendance;
+      }
+      
+      setHistory(prev => [newRecord, ...prev.filter(r => r.id !== newRecord.id)].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+      setCheckedIn(true);
+      toast.success(`Checked in for Study Hour ${selectedSH}!`, { id: 'checkin' });
+    } catch (err) {
+      console.error(err);
+      toast.error('Failed to check in', { id: 'checkin' });
+    }
   };
 
+  const sessionsThisMonth = history.filter(h => h.date.startsWith(todayDateStr.slice(0, 7))).length;
+  const avgStudents = history.length > 0 ? Math.round(history.reduce((acc, h) => acc + (h.studentCount || 0), 0) / history.length) : 0;
+  const totalHours = history.reduce((acc, h) => acc + (h.duration || 120), 0) / 60;
+
   return (
-    <DashboardLayout role="mentor" userName="Mr. Suresh Babu" userEmail="suresh@college.edu">
+    <DashboardLayout role="mentor">
       <div className="space-y-6 pb-20 lg:pb-8">
-        <PageHeader title="Attendance" description="Check in for study hours and view history" />
+        <PageHeader title="Attendance History" description="Check in for study hours and view history" />
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard title="This Month" value="24 sessions" icon={<ClipboardCheck className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
-          <StatCard title="Total Hours" value="48h" icon={<Clock className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.1} />
-          <StatCard title="Avg Students" value={45} icon={<Users className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.2} />
-          <StatCard title="On-Time Rate" value="94%" icon={<CheckCircle2 className="h-5 w-5 text-violet-500" />} iconBg="bg-violet-500/10" delay={0.3} />
+          <StatCard title="This Month" value={`${sessionsThisMonth} sessions`} icon={<ClipboardCheck className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
+          <StatCard title="Total Hours" value={`${Math.round(totalHours)}h`} icon={<Clock className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.1} />
+          <StatCard title="Avg Students" value={avgStudents} icon={<Users className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.2} />
+          <StatCard title="On-Time Rate" value="—" icon={<CheckCircle2 className="h-5 w-5 text-violet-500" />} iconBg="bg-violet-500/10" delay={0.3} />
         </div>
 
         {!checkedIn && (
@@ -106,7 +175,7 @@ export default function MentorAttendance() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 mt-4">
                 <div className="space-y-2">
                   <Label className="text-xs">Topic Covered *</Label>
                   <Input value={form.topic} onChange={e => setForm({ ...form, topic: e.target.value })} placeholder="e.g., Organic Chemistry - Alkenes" className="rounded-xl bg-background/50 h-10" />
@@ -136,7 +205,7 @@ export default function MentorAttendance() {
               </div>
               <div>
                 <p className="font-semibold text-emerald-600">Checked In for Study Hour {selectedSH}</p>
-                <p className="text-xs text-muted-foreground">Session started at {new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}</p>
+                <p className="text-xs text-muted-foreground">You have successfully logged attendance for this session.</p>
               </div>
             </CardContent>
           </Card>
@@ -152,44 +221,49 @@ export default function MentorAttendance() {
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input placeholder="Search by topic or date..." value={search} onChange={e => setSearch(e.target.value)} className="h-10 rounded-xl bg-background/50 pl-9" />
             </div>
-            <div className="space-y-2">
-              {filtered.map((h, i) => (
-                <motion.div
-                  key={h.id}
-                  initial={{ y: 5, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: i * 0.03 }}
-                  className="flex flex-col gap-2 rounded-xl bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                      <BookOpen className="h-5 w-5 text-primary" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-sm">{h.topic}</p>
-                      <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{h.date}</span>
-                        <span className="flex items-center gap-1"><Timer className="h-3 w-3" />SH {h.studyHour}</span>
-                        <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{h.checkInTime}</span>
+            
+            {loading ? (
+               <div className="flex justify-center p-8 text-muted-foreground">Loading history...</div>
+            ) : (
+              <div className="space-y-2">
+                {filtered.map((h, i) => (
+                  <motion.div
+                    key={h.id}
+                    initial={{ y: 5, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: i * 0.03 }}
+                    className="flex flex-col gap-2 rounded-xl bg-muted/30 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
+                        <BookOpen className="h-5 w-5 text-primary" />
                       </div>
-                      {h.notes && <p className="mt-1 text-xs text-muted-foreground">📝 {h.notes}</p>}
+                      <div>
+                        <p className="font-semibold text-sm">{h.topic || 'No topic logged'}</p>
+                        <div className="flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+                          <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{h.date}</span>
+                          <span className="flex items-center gap-1"><Timer className="h-3 w-3" />SH {h.studyHour}</span>
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{h.checkInTime}</span>
+                        </div>
+                        {h.notes && <p className="mt-1 text-xs text-muted-foreground">📝 {h.notes}</p>}
+                      </div>
                     </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="outline" className="rounded-lg">
+                        <Users className="mr-1 h-3 w-3" />{h.studentCount || 0}
+                      </Badge>
+                      {h.sectionId && <Badge variant="outline" className="rounded-lg">{h.sectionId}</Badge>}
+                    </div>
+                  </motion.div>
+                ))}
+                {filtered.length === 0 && (
+                  <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
+                    <ClipboardCheck className="h-10 w-10 opacity-30" />
+                    <p className="text-sm">No history found</p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="outline" className="rounded-lg">
-                      <Users className="mr-1 h-3 w-3" />{h.studentCount}
-                    </Badge>
-                    {h.sectionId && <Badge variant="outline" className="rounded-lg">{h.sectionId}</Badge>}
-                  </div>
-                </motion.div>
-              ))}
-              {filtered.length === 0 && (
-                <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
-                  <ClipboardCheck className="h-10 w-10 opacity-30" />
-                  <p className="text-sm">No history found</p>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
