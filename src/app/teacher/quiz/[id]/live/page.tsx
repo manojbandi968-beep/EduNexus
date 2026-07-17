@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { useSocket } from '@/lib/socket/client';
 import { SOCKET_EVENTS } from '@/lib/socket/events';
 import { useAuth } from '@/contexts/AuthContext';
+import { createDocument, COLLECTIONS } from '@/lib/firebase/firestore';
 
 interface QuizQuestion {
   id: string;
@@ -48,6 +49,9 @@ export default function LiveQuizPage() {
   const socket = useSocket();
   
   const topic = searchParams.get('topic') || 'General';
+  const quizName = searchParams.get('name') || `${topic} Quiz`;
+  const section = searchParams.get('section') || 'General';
+  const stream = searchParams.get('stream') || 'MPC';
   const quizId = params.id;
 
   const [questions, setQuestions] = useState<QuizQuestion[]>([]);
@@ -101,18 +105,55 @@ export default function LiveQuizPage() {
       setCurrentIndex(prev => prev + 1);
       // Reset answered status for the new question
       setStudents(prev => prev.map(s => ({ ...s, hasAnsweredCurrent: false })));
-    } else {
       setQuizEnded(true);
-      if (socket && user) {
-        const istTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-        socket.emit(SOCKET_EVENTS.TEACHER_END_QUIZ, {
-          teacherName: user.displayName || 'Teacher',
-          teacherId: user.uid,
+      
+      const classAverage = students.length > 0 
+        ? Math.round((students.reduce((sum, s) => sum + s.score, 0) / (students.length * questions.length)) * 100) 
+        : 0;
+
+      // Update localStorage for /teacher/quiz view
+      try {
+        const saved = localStorage.getItem('teacher_quizzes');
+        if (saved) {
+          const quizzes = JSON.parse(saved);
+          const existingIdx = quizzes.findIndex((q: any) => String(q.id) === String(quizId));
+          if (existingIdx !== -1) {
+            quizzes[existingIdx].students = students.length;
+            quizzes[existingIdx].totalStudents = students.length;
+            quizzes[existingIdx].avgScore = classAverage;
+            localStorage.setItem('teacher_quizzes', JSON.stringify(quizzes));
+          }
+        }
+      } catch (e) {
+        console.error('Failed to update local storage', e);
+      }
+
+      if (user) {
+        // Save to Firestore so it appears on Dashboard
+        createDocument(COLLECTIONS.QUIZZES, {
+          name: quizName,
           topic: topic,
+          subject: topic,
+          sectionId: section,
+          stream: stream,
+          teacherId: user.uid,
+          date: new Date().toISOString().split('T')[0],
+          classAverage: classAverage,
           totalStudents: students.length,
-          timestamp: Date.now(),
-          istTime: istTime
-        });
+          timestamp: Date.now()
+        }).catch(err => console.error('Failed to save quiz to Firestore:', err));
+
+        if (socket) {
+          const istTime = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+          socket.emit(SOCKET_EVENTS.TEACHER_END_QUIZ, {
+            teacherName: user.displayName || 'Teacher',
+            teacherId: user.uid,
+            topic: topic,
+            totalStudents: students.length,
+            timestamp: Date.now(),
+            istTime: istTime
+          });
+        }
       }
     }
   };

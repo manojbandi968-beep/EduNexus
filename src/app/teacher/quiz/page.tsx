@@ -65,7 +65,18 @@ const initialQuizzes: Quiz[] = [
 function TeacherQuizContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const [quizzes, setQuizzes] = useState<Quiz[]>(initialQuizzes);
+  const [quizzes, setQuizzes] = useState<Quiz[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('teacher_quizzes');
+      if (saved) return JSON.parse(saved);
+    }
+    return initialQuizzes;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('teacher_quizzes', JSON.stringify(quizzes));
+  }, [quizzes]);
+
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const hasOpened = useRef(false);
@@ -153,7 +164,7 @@ function TeacherQuizContent() {
     setForm({ name: '', topic: '', section: '', stream: '', questionCount: '' });
     
     // Redirect to Live Quiz page
-    router.push(`/teacher/quiz/${newQuiz.id}/live?topic=${encodeURIComponent(newQuiz.topic)}`);
+    router.push(`/teacher/quiz/${newQuiz.id}/live?topic=${encodeURIComponent(newQuiz.topic)}&name=${encodeURIComponent(newQuiz.name)}&section=${encodeURIComponent(newQuiz.section)}&stream=${encodeURIComponent(newQuiz.stream)}`);
   };
 
   return (

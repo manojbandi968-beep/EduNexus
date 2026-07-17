@@ -87,6 +87,7 @@ app.prepare().then(() => {
 
     socket.on(SOCKET_EVENTS.TEACHER_END_QUIZ, (payload: any) => {
       io.to('principal').emit(SOCKET_EVENTS.QUIZ_ENDED, payload);
+      io.to('teacher').emit(SOCKET_EVENTS.QUIZ_ENDED, payload);
       io.to('principal').emit(SOCKET_EVENTS.TEACHER_ACTIVITY, {
         teacherName: payload.teacherName,
         action: `Completed a quiz on ${payload.topic}`,
