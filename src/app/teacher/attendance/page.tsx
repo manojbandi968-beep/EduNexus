@@ -47,28 +47,77 @@ export default function TeacherAttendance() {
   const late = history.filter(h => h.status === 'late').length;
 
   const handleMark = async () => {
-    const status = new Date().getHours() < 9 ? 'present' : 'late';
-    const dateStr = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-
-    try {
-      await createDocument(COLLECTIONS.ATTENDANCE, {
-        teacherId: user?.uid || '',
-        teacherName: user?.displayName || 'Unknown',
-        email: user?.email || '',
-        status,
-        checkIn: checkInTime,
-        date: dateStr,
-        timestamp: new Date().toISOString(),
-      });
-
-      const socket = getSocket();
-      socket.emit(SOCKET_EVENTS.ATTENDANCE_UPDATED, { teacherName: user?.displayName, status, time: checkInTime });
-
-      setMarked(true);
-      toast.success('Attendance marked!', { description: `Checked in at ${checkInTime} · Location verified` });
-    } catch {
-      toast.error('Failed to mark attendance. Please try again.');
+    if (!navigator.geolocation) {
+      toast.error('Geolocation is not supported by your browser');
+      return;
     }
+
+    toast.info('Verifying location...', { id: 'location-toast' });
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords;
+        
+        // Mock College Location (e.g. Hyderabad)
+        const COLLEGE_LAT = 17.3850;
+        const COLLEGE_LNG = 78.4867;
+        
+        // Simple distance calculation (Euclidean for mocking)
+        const distance = Math.sqrt(Math.pow(latitude - COLLEGE_LAT, 2) + Math.pow(longitude - COLLEGE_LNG, 2));
+        const isInsideCollege = distance < 0.05; // ~5km radius for testing
+
+        toast.dismiss('location-toast');
+
+        const status = new Date().getHours() < 9 ? 'present' : 'late';
+        const dateStr = new Date().toLocaleDateString('en-CA');
+
+        try {
+          await createDocument(COLLECTIONS.ATTENDANCE, {
+            teacherId: user?.uid || '',
+            teacherName: user?.displayName || 'Unknown',
+            email: user?.email || '',
+            status,
+            checkIn: checkInTime,
+            date: dateStr,
+            location: { lat: latitude, lng: longitude },
+            inCollege: isInsideCollege,
+            timestamp: new Date().toISOString(),
+          });
+
+          await createDocument(COLLECTIONS.AUDIT_LOGS, {
+            action: 'attendance',
+            userId: user?.uid || '',
+            userName: user?.displayName || 'Unknown',
+            userRole: 'teacher',
+            details: `Marked attendance as ${status} (${isInsideCollege ? 'In Campus' : 'Off Campus'})`,
+            timestamp: new Date().toISOString(),
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+          });
+
+          const socket = getSocket();
+          socket.emit(SOCKET_EVENTS.TEACHER_MARK_ATTENDANCE, {
+            teacherName: user?.displayName || 'Unknown',
+            teacherId: user?.uid || '',
+            status,
+            checkInTime,
+            date: dateStr,
+            timestamp: Date.now(),
+            location: { lat: latitude, lng: longitude },
+            inCollege: isInsideCollege,
+          });
+
+          setMarked(true);
+          toast.success('Attendance marked!', { description: `Checked in at ${checkInTime} · ${isInsideCollege ? 'In Campus' : 'Off Campus'}` });
+        } catch {
+          toast.error('Failed to mark attendance. Please try again.');
+        }
+      },
+      (error) => {
+        toast.dismiss('location-toast');
+        toast.error('Location access denied. Cannot mark attendance.');
+      }
+    );
   };
 
   return (

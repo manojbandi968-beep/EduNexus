@@ -33,12 +33,22 @@ export type AuditAction =
   | 'leave_approved'
   | 'leave_rejected'
   | 'announcement_created'
+  | 'announcement_updated'
   | 'announcement_deleted'
   | 'student_created'
   | 'student_edited'
   | 'student_deleted'
   | 'settings_updated'
-  | 'principal_action';
+  | 'principal_action'
+  | 'task_created'
+  | 'task_updated'
+  | 'task_completed'
+  | 'event_created'
+  | 'event_updated'
+  | 'resource_uploaded'
+  | 'session_logged'
+  | 'student_report_created'
+  | 'notification_sent';
 
 // ---- Base Types ----
 
@@ -270,67 +280,78 @@ export interface Notification extends Timestamps {
   metadata?: Record<string, unknown>;
 }
 
-// ---- Performance (Principal Only) ----
+// ---- Tasks ----
 
-export interface TeacherPerformance extends Timestamps {
+export type TaskStatus = 'pending' | 'in_progress' | 'completed';
+export type TaskPriority = 'low' | 'medium' | 'high';
+
+export interface Task extends Timestamps {
   id: string;
-  teacherId: string;
-  academicYear: string;
-  attendancePercentage: number;
-  lateArrivals: number;
-  totalQuizzes: number;
-  averageQuizScore: number;
-  mentorSessionsCount?: number;
-  // Principal-only private fields
-  privateNotes?: string;
-  privateRating?: number; // 1-5
-  behaviorComments?: string;
+  title: string;
+  description: string;
+  assignedTo: string;
+  assignedToName: string;
+  assignedBy: string;
+  assignedByName: string;
+  status: TaskStatus;
+  dueDate: string;
+  priority: TaskPriority;
+  completedAt?: string;
 }
 
-// ---- Settings ----
+// ---- Events ----
 
-export interface InstitutionSettings extends Timestamps {
+export type EventType = 'academic' | 'holiday' | 'meeting' | 'event' | 'exam';
+
+export interface Event extends Timestamps {
   id: string;
-  collegeName: string;
-  logo?: string;
-  address: string;
-  academicYear: string;
-  campusLocation: {
-    latitude: number;
-    longitude: number;
-  };
-  geofenceRadius: number; // meters
-  workingDays: DayOfWeek[];
-  holidays: Holiday[];
-  lateCheckInWindow: number; // minutes after period start
-  attendanceRules: {
-    minAttendancePercentage: number;
-    lateThresholdMinutes: number;
-  };
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  type: EventType;
+  targetRoles: UserRole[];
+  createdBy: string;
+  createdByName: string;
 }
 
-export interface Holiday {
+// ---- Resources ----
+
+export interface Resource extends Timestamps {
+  id: string;
+  title: string;
+  description: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number;
+  uploadedBy: string;
+  uploadedByName: string;
+  targetRoles: UserRole[];
+  targetStreams?: StreamCode[];
+  subjectId?: string;
+  sectionId?: string;
+}
+
+// ---- Student Reports ----
+
+export interface StudentReport extends Timestamps {
+  id: string;
+  studentId: string;
+  studentName: string;
+  mentorId: string;
+  mentorName: string;
   date: string;
-  name: string;
-  type: 'public' | 'institutional';
+  studyHour: 1 | 2;
+  topic: string;
+  observations: string;
+  strengths: string[];
+  areasOfImprovement: string[];
+  actionItems: string[];
+  studentCount: number;
+  duration: number; // minutes
 }
 
-// ---- Audit Log ----
-
-export interface AuditLog extends Timestamps {
-  id: string;
-  action: AuditAction;
-  userId: string;
-  userName: string;
-  userRole: UserRole;
-  details: string;
-  metadata?: Record<string, unknown>;
-  ipAddress?: string;
-  userAgent?: string;
-  timestamp: string;
-}
-
-// ---- Dashboard Types ----
+// ---- Dashboard Stats ----
 
 export interface DashboardStats {
   totalTeachers: number;
@@ -343,6 +364,8 @@ export interface DashboardStats {
   pendingApprovals: number;
   todayQuizzes: number;
   activeClasses: number;
+  pendingTasks: number;
+  upcomingEvents: number;
 }
 
 export interface AttendanceChartData {
@@ -358,6 +381,119 @@ export interface QuizChartData {
   quizCount: number;
 }
 
+// ---- Teacher Dashboard Types ----
+
+export interface TeacherDashboardStats {
+  attendancePercent: number;
+  todayClasses: number;
+  completedClasses: number;
+  upcomingClasses: number;
+  totalQuizzes: number;
+  avgQuizScore: number;
+  pendingLeaves: number;
+  assignedSections: number;
+}
+
+export interface TeacherAttendanceChartData {
+  date: string;
+  status: 'present' | 'late' | 'absent' | 'none';
+}
+
+export interface TeacherQuizChartData {
+  subject: string;
+  average: number;
+  quizCount: number;
+}
+
+export interface TeacherTodayClass {
+  period: string;
+  time: string;
+  subject: string;
+  section: string;
+  room: string;
+  status: 'completed' | 'current' | 'upcoming';
+}
+
+export interface TeacherRecentQuiz {
+  name: string;
+  section: string;
+  date: string;
+  avg: number;
+  students: number;
+}
+
+export interface TeacherAnnouncement {
+  title: string;
+  type: string;
+  time: string;
+}
+
+export interface TeacherDashboardData {
+  stats: TeacherDashboardStats;
+  attendanceChartData: TeacherAttendanceChartData[];
+  quizChartData: TeacherQuizChartData[];
+  todaySchedule: TeacherTodayClass[];
+  recentQuizzes: TeacherRecentQuiz[];
+  announcements: TeacherAnnouncement[];
+  teacherName: string;
+}
+
+// ---- Mentor Dashboard Types ----
+
+export interface MentorDashboardStats {
+  sessionsThisMonth: number;
+  avgStudentsPerSession: number;
+  totalHours: number;
+  doubtsCleared: number;
+  attendanceRate: number;
+  currentStreak: number;
+}
+
+export interface MentorAttendanceChartData {
+  date: string;
+  studyHour: 1 | 2;
+  checkedIn: boolean;
+  topic?: string;
+  studentCount?: number;
+}
+
+export interface MentorDashboardData {
+  stats: MentorDashboardStats;
+  attendanceChartData: MentorAttendanceChartData[];
+  upcomingSessions: {
+    studyHour: 1 | 2;
+    time: string;
+    isCurrent: boolean;
+    isUpcoming: boolean;
+  }[];
+  previousSessions: {
+    date: string;
+    studyHour: 1 | 2;
+    topic: string;
+    students: number;
+    duration: number;
+    notes: string;
+  }[];
+  announcements: TeacherAnnouncement[];
+  assignedBatches: string[];
+  mentorName: string;
+}
+
+// ---- Activity Log ----
+
+export interface ActivityLog {
+  id: string;
+  action: string;
+  userId: string;
+  userName: string;
+  userRole: string;
+  details: string;
+  timestamp: string;
+  metadata?: Record<string, unknown>;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
 // ---- Navigation Types ----
 
 export interface NavItem {
@@ -366,4 +502,15 @@ export interface NavItem {
   icon: string;
   badge?: number;
   children?: NavItem[];
+}
+
+export interface CollegeEvent {
+  id: string;
+  title: string;
+  type: EventType;
+  date: string; // YYYY-MM-DD
+  description?: string;
+  createdBy: string;
+  creatorName: string;
+  timestamp: string;
 }

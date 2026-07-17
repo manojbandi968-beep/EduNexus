@@ -60,17 +60,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (fbUser) => {
         if (fbUser) {
           setFirebaseUser(fbUser);
-          setUser({
-            uid: fbUser.uid,
-            email: fbUser.email,
-            displayName: fbUser.displayName,
-            photoURL: fbUser.photoURL,
+          fbUser.getIdTokenResult(true).then((tokenResult) => {
+            setUser({
+              uid: fbUser.uid,
+              email: fbUser.email,
+              displayName: fbUser.displayName,
+              photoURL: fbUser.photoURL,
+              role: tokenResult.claims.role as UserRole,
+            });
+            setLoading(false);
           });
         } else {
           setFirebaseUser(null);
-          setUser(null);
+          // Fallback to check if a server-side session exists
+          fetch('/api/auth/session')
+            .then((res) => res.json())
+            .then((data) => {
+              if (data.user) {
+                setUser(data.user);
+              } else {
+                setUser(null);
+              }
+              setLoading(false);
+            })
+            .catch(() => {
+              setUser(null);
+              setLoading(false);
+            });
         }
-        setLoading(false);
       },
       (err) => {
         console.error('Auth state error:', err);

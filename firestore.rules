@@ -147,5 +147,11 @@ service cloud.firestore {
     match /loginAttempts/{docId} {
       allow read, write: if isPrincipal();
     }
+
+    // ----- Events -----
+    match /events/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isPrincipal();
+    }
   }
 }

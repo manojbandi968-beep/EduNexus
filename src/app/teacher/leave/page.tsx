@@ -38,6 +38,8 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { getSocket } from '@/lib/socket/client';
+import { SOCKET_EVENTS } from '@/lib/socket/events';
 import type { LeaveType, LeaveStatus } from '@/types';
 
 interface LeaveRequest {
@@ -52,11 +54,9 @@ interface LeaveRequest {
   approvedBy?: string;
 }
 
-const initialLeaves: LeaveRequest[] = [
-  { id: '1', type: 'casual', startDate: '2025-06-10', endDate: '2025-06-10', reason: 'Personal work', status: 'approved', days: 1, appliedOn: '2025-06-05', approvedBy: 'Principal' },
-  { id: '2', type: 'sick', startDate: '2025-05-20', endDate: '2025-05-21', reason: 'Was unwell with viral fever', status: 'approved', days: 2, appliedOn: '2025-05-19', approvedBy: 'Principal' },
-  { id: '3', type: 'casual', startDate: '2025-07-15', endDate: '2025-07-15', reason: 'Family function to attend. Will ensure classes are covered.', status: 'pending', days: 1, appliedOn: '2025-07-10' },
-];
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSocket, useSocketEvent } from '@/lib/socket/client';
+import { useAuth } from '@/contexts/AuthContext';
 
 const typeColors: Record<LeaveType, string> = {
   casual: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
@@ -79,30 +79,26 @@ const statusColors: Record<LeaveStatus, string> = {
 const leaveBalance = { casual: { used: 3, total: 12 }, sick: { used: 2, total: 10 }, emergency: { used: 0, total: 5 } };
 
 export default function TeacherLeave() {
-  const teacherId = 'ramesh-t1';
-  const teacherName = 'Dr. Ramesh Kumar';
-  const store = useSyncExternalStore(subscribe, getData, getData);
-  const [leaves, setLeaves] = useState<LeaveRequest[]>(initialLeaves);
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const socket = useSocket();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ type: '' as LeaveType | '', startDate: '', endDate: '', reason: '' });
 
-  const allLeaves = [
-    ...store.leaveRequests
-      .filter(l => l.teacherId === teacherId)
-      .map(l => ({
-        id: l.id,
-        type: l.type as LeaveType,
-        startDate: l.startDate,
-        endDate: l.endDate,
-        reason: l.reason,
-        status: l.status as LeaveStatus,
-        days: l.days,
-        appliedOn: l.appliedOn,
-      })),
-    ...leaves.filter(l => !store.leaveRequests.some(s => s.id === l.id)),
-  ];
+  const { data: allLeaves = [], isLoading } = useQuery({
+    queryKey: ['leaves', user?.uid],
+    queryFn: () => fetch(`/api/leaves?userId=${user?.uid}`).then(res => res.json()).then(data => data.records || []),
+    enabled: !!user?.uid,
+  });
 
-  const handleRequest = () => {
+  useSocketEvent(socket ? SOCKET_EVENTS.LEAVE_APPROVED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['leaves', user?.uid] });
+  });
+  useSocketEvent(socket ? SOCKET_EVENTS.LEAVE_REJECTED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['leaves', user?.uid] });
+  });
+
+  const handleRequest = async () => {
     if (!form.type || !form.startDate || !form.endDate || !form.reason) {
       toast.error('Please fill in all fields');
       return;
@@ -111,25 +107,51 @@ export default function TeacherLeave() {
     const end = new Date(form.endDate);
     const days = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
 
-    const newLeave: LeaveRequest = {
-      id: String(Date.now()),
+    const newLeave = {
+      teacherId: user?.uid,
+      teacherName: user?.displayName || 'Teacher',
       type: form.type as LeaveType,
       startDate: form.startDate,
       endDate: form.endDate,
       reason: form.reason,
-      status: 'pending',
       days,
-      appliedOn: new Date().toISOString().split('T')[0],
     };
-    setLeaves(prev => [newLeave, ...prev]);
-    requestLeave({ ...newLeave, teacherName, teacherId });
-    toast.success('Leave request submitted for approval');
-    setDialogOpen(false);
-    setForm({ type: '', startDate: '', endDate: '', reason: '' });
+    
+    try {
+      const response = await fetch('/api/leaves', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newLeave),
+      });
+      
+      if (!response.ok) throw new Error('Failed to create leave');
+      
+      queryClient.invalidateQueries({ queryKey: ['leaves', user?.uid] });
+
+      if (socket) {
+        socket.emit(SOCKET_EVENTS.TEACHER_REQUEST_LEAVE, {
+          teacherId: user?.uid,
+          teacherName: user?.displayName || 'Teacher',
+          type: form.type,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          reason: form.reason,
+          days,
+          appliedOn: new Date().toISOString().split('T')[0],
+          timestamp: Date.now()
+        });
+      }
+
+      toast.success('Leave request submitted for approval');
+      setDialogOpen(false);
+      setForm({ type: '', startDate: '', endDate: '', reason: '' });
+    } catch (error) {
+      toast.error('Failed to submit leave request');
+    }
   };
 
   return (
-    <DashboardLayout role="teacher" userName={teacherName} userEmail="ramesh@college.edu">
+    <DashboardLayout role="teacher" userName={user?.displayName || 'Teacher'} userEmail={user?.email || 'teacher@collegedost.com'}>
       <div className="space-y-6 pb-20 lg:pb-8">
         <PageHeader title="Leave" description="Request and track your leave">
           <Button onClick={() => setDialogOpen(true)} className="gap-2 rounded-xl gradient-primary border-0 text-white">
@@ -140,9 +162,9 @@ export default function TeacherLeave() {
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard title="Total Requests" value={allLeaves.length} icon={<CalendarOff className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
-          <StatCard title="Approved" value={allLeaves.filter(l => l.status === 'approved').length} icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.1} />
-          <StatCard title="Pending" value={allLeaves.filter(l => l.status === 'pending').length} icon={<Hourglass className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.2} />
-          <StatCard title="Rejected" value={allLeaves.filter(l => l.status === 'rejected').length} icon={<XCircle className="h-5 w-5 text-red-500" />} iconBg="bg-red-500/10" delay={0.3} />
+          <StatCard title="Approved" value={allLeaves.filter((l: any) => l.status === 'approved').length} icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.1} />
+          <StatCard title="Pending" value={allLeaves.filter((l: any) => l.status === 'pending').length} icon={<Hourglass className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.2} />
+          <StatCard title="Rejected" value={allLeaves.filter((l: any) => l.status === 'rejected').length} icon={<XCircle className="h-5 w-5 text-red-500" />} iconBg="bg-red-500/10" delay={0.3} />
         </div>
 
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -175,7 +197,7 @@ export default function TeacherLeave() {
                   <p className="text-sm">No leave requests yet</p>
                 </div>
               ) : (
-                allLeaves.map((leave, i) => (
+                allLeaves.map((leave: any, i: number) => (
                   <motion.div
                     key={leave.id}
                     initial={{ y: 5, opacity: 0 }}
@@ -185,12 +207,12 @@ export default function TeacherLeave() {
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10">
-                        {statusIcons[leave.status]}
+                        {statusIcons[leave.status as LeaveStatus]}
                       </div>
                       <div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${typeColors[leave.type]}`}>{leave.type}</Badge>
-                          <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${statusColors[leave.status]}`}>{leave.status}</Badge>
+                          <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${typeColors[leave.type as LeaveType]}`}>{leave.type}</Badge>
+                          <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${statusColors[leave.status as LeaveStatus]}`}>{leave.status}</Badge>
                         </div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{leave.startDate} → {leave.endDate}</span>

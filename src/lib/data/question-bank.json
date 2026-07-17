@@ -1,0 +1,82 @@
+{
+  "calculus": {
+    "aliases": ["calculus", "differentiation", "integration", "limits"],
+    "questions": [
+      { "id": "calc1", "question": "What is the derivative of x^2?", "options": ["2x", "x^2", "2", "x"], "correctAnswerIndex": 0 },
+      { "id": "calc2", "question": "What is the integral of 2x dx?", "options": ["x^2", "x^2 + C", "2", "x"], "correctAnswerIndex": 1 },
+      { "id": "calc3", "question": "What is the derivative of sin(x)?", "options": ["cos(x)", "-cos(x)", "sin(x)", "-sin(x)"], "correctAnswerIndex": 0 },
+      { "id": "calc4", "question": "What is the limit of (sin x)/x as x approaches 0?", "options": ["1", "0", "Infinity", "Undefined"], "correctAnswerIndex": 0 },
+      { "id": "calc5", "question": "If f(x) = e^x, what is f'(x)?", "options": ["e^x", "x*e^(x-1)", "ln(x)", "1/x"], "correctAnswerIndex": 0 }
+    ]
+  },
+  "algebra": {
+    "aliases": ["algebra", "quadratic equations", "polynomials", "complex numbers"],
+    "questions": [
+      { "id": "alg1", "question": "What are the roots of x^2 - 5x + 6 = 0?", "options": ["2, 3", "-2, -3", "1, 6", "-1, -6"], "correctAnswerIndex": 0 },
+      { "id": "alg2", "question": "What is the value of i^2?", "options": ["1", "-1", "0", "i"], "correctAnswerIndex": 1 },
+      { "id": "alg3", "question": "The sum of the roots of ax^2 + bx + c = 0 is?", "options": ["-b/a", "c/a", "b/a", "-c/a"], "correctAnswerIndex": 0 },
+      { "id": "alg4", "question": "Which of these is a polynomial?", "options": ["x^2 + 1/x", "sqrt(x) + 2", "x^3 - 2x + 1", "sin(x)"], "correctAnswerIndex": 2 },
+      { "id": "alg5", "question": "If a + b = 5 and ab = 6, what is a^2 + b^2?", "options": ["25", "13", "11", "36"], "correctAnswerIndex": 1 }
+    ]
+  },
+  "matrices": {
+    "aliases": ["matrices", "determinants", "matrix"],
+    "questions": [
+      { "id": "mat1", "question": "A matrix with zero determinant is called?", "options": ["Identity matrix", "Singular matrix", "Symmetric matrix", "Null matrix"], "correctAnswerIndex": 1 },
+      { "id": "mat2", "question": "If A is a 2x2 identity matrix, what is det(A)?", "options": ["0", "1", "2", "-1"], "correctAnswerIndex": 1 },
+      { "id": "mat3", "question": "For a symmetric matrix A, which is true?", "options": ["A = -A", "A^T = -A", "A^T = A", "A^2 = I"], "correctAnswerIndex": 2 },
+      { "id": "mat4", "question": "If det(A) = 5, what is det(A^-1)?", "options": ["5", "1/5", "-5", "0"], "correctAnswerIndex": 1 },
+      { "id": "mat5", "question": "The trace of a matrix is the sum of its?", "options": ["Row elements", "Column elements", "Diagonal elements", "All elements"], "correctAnswerIndex": 2 }
+    ]
+  },
+  "kinematics": {
+    "aliases": ["kinematics", "motion", "projectile", "mechanics"],
+    "questions": [
+      { "id": "kin1", "question": "The slope of a velocity-time graph gives?", "options": ["Distance", "Displacement", "Acceleration", "Jerk"], "correctAnswerIndex": 2 },
+      { "id": "kin2", "question": "What is the equation for distance in uniform acceleration?", "options": ["v = u + at", "s = ut + 1/2 at^2", "v^2 = u^2 + 2as", "s = vt"], "correctAnswerIndex": 1 },
+      { "id": "kin3", "question": "In projectile motion, horizontal velocity is?", "options": ["Zero", "Increasing", "Decreasing", "Constant"], "correctAnswerIndex": 3 },
+      { "id": "kin4", "question": "A body dropped from a height has initial velocity?", "options": ["9.8 m/s", "0", "Maximum", "Depends on mass"], "correctAnswerIndex": 1 },
+      { "id": "kin5", "question": "Which of these is a scalar quantity?", "options": ["Velocity", "Displacement", "Speed", "Acceleration"], "correctAnswerIndex": 2 }
+    ]
+  },
+  "thermodynamics": {
+    "aliases": ["thermodynamics", "heat", "carnot", "entropy"],
+    "questions": [
+      { "id": "thm1", "question": "What does the First Law of Thermodynamics state?", "options": ["Energy cannot be created or destroyed", "Entropy always increases", "Absolute zero is unattainable", "PV = nRT"], "correctAnswerIndex": 0 },
+      { "id": "thm2", "question": "Which process occurs at a constant temperature?", "options": ["Isobaric", "Isochoric", "Isothermal", "Adiabatic"], "correctAnswerIndex": 2 },
+      { "id": "thm3", "question": "What is the unit of entropy?", "options": ["Joule (J)", "Joule per Kelvin (J/K)", "Watt (W)", "Pascal (Pa)"], "correctAnswerIndex": 1 },
+      { "id": "thm4", "question": "In an adiabatic process, which of the following is true?", "options": ["Work done is zero", "Heat exchange is zero", "Temperature is constant", "Volume is constant"], "correctAnswerIndex": 1 },
+      { "id": "thm5", "question": "What is the efficiency of an ideal Carnot engine?", "options": ["1 - (Tc/Th)", "1 - (Th/Tc)", "Tc/Th", "(Th - Tc)/Tc"], "correctAnswerIndex": 0 }
+    ]
+  },
+  "organic chemistry": {
+    "aliases": ["organic chemistry", "carbon", "hydrocarbons", "alkanes", "alkenes", "alkynes"],
+    "questions": [
+      { "id": "org1", "question": "What is the general formula for alkanes?", "options": ["CnH2n", "CnH2n+2", "CnH2n-2", "CnH2n+1"], "correctAnswerIndex": 1 },
+      { "id": "org2", "question": "Which hybridization is present in a triple bond?", "options": ["sp3", "sp2", "sp", "dsp2"], "correctAnswerIndex": 2 },
+      { "id": "org3", "question": "Benzene is an example of what type of compound?", "options": ["Aliphatic", "Aromatic", "Alicyclic", "Heterocyclic"], "correctAnswerIndex": 1 },
+      { "id": "org4", "question": "What is the IUPAC name of CH3-CH2-OH?", "options": ["Methanol", "Ethanol", "Propanol", "Ethanal"], "correctAnswerIndex": 1 },
+      { "id": "org5", "question": "Markovnikov's rule applies to the addition of?", "options": ["Symmetric reagents to symmetric alkenes", "Unsymmetric reagents to unsymmetric alkenes", "Halogens to alkanes", "Water to alcohols"], "correctAnswerIndex": 1 }
+    ]
+  },
+  "zoology": {
+    "aliases": ["zoology", "human anatomy", "physiology", "animals"],
+    "questions": [
+      { "id": "zoo1", "question": "Which is the largest gland in the human body?", "options": ["Pancreas", "Thyroid", "Liver", "Pituitary"], "correctAnswerIndex": 2 },
+      { "id": "zoo2", "question": "What is the basic unit of the nervous system?", "options": ["Nephron", "Neuron", "Alveolus", "Villus"], "correctAnswerIndex": 1 },
+      { "id": "zoo3", "question": "Where does the primary absorption of nutrients occur?", "options": ["Stomach", "Large Intestine", "Small Intestine", "Liver"], "correctAnswerIndex": 2 },
+      { "id": "zoo4", "question": "Which blood cells are responsible for immunity?", "options": ["Erythrocytes (RBCs)", "Leukocytes (WBCs)", "Thrombocytes (Platelets)", "Plasma cells"], "correctAnswerIndex": 1 },
+      { "id": "zoo5", "question": "What is the normal resting heart rate for an adult?", "options": ["40-50 bpm", "60-100 bpm", "100-120 bpm", "120-140 bpm"], "correctAnswerIndex": 1 }
+    ]
+  },
+  "botany": {
+    "aliases": ["botany", "plants", "photosynthesis", "cell biology"],
+    "questions": [
+      { "id": "bot1", "question": "Which organelle is known as the powerhouse of the cell?", "options": ["Nucleus", "Chloroplast", "Mitochondria", "Ribosome"], "correctAnswerIndex": 2 },
+      { "id": "bot2", "question": "What is the primary pigment involved in photosynthesis?", "options": ["Xanthophyll", "Carotene", "Chlorophyll a", "Anthocyanin"], "correctAnswerIndex": 2 },
+      { "id": "bot3", "question": "The process of water loss in the form of vapor from plants is called?", "options": ["Transpiration", "Respiration", "Guttation", "Exudation"], "correctAnswerIndex": 0 },
+      { "id": "bot4", "question": "Which part of the plant conducts water and minerals?", "options": ["Phloem", "Xylem", "Cambium", "Epidermis"], "correctAnswerIndex": 1 },
+      { "id": "bot5", "question": "Meiosis results in the formation of how many daughter cells?", "options": ["2", "4", "6", "8"], "correctAnswerIndex": 1 }
+    ]
+  }
+}

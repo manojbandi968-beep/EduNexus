@@ -38,17 +38,6 @@ interface AuditEntry {
   type: 'login' | 'attendance' | 'quiz' | 'leave' | 'admin' | 'system';
 }
 
-const logs: AuditEntry[] = [
-  { id: '1', action: 'Successful Login', user: 'principal@collegedost.com', role: 'principal', details: 'Logged in as Principal', timestamp: '2025-07-05 08:30:00', ipAddress: '192.168.1.100', browser: 'Chrome 125', device: 'Desktop', type: 'login' },
-  { id: '2', action: 'Attendance Marked', user: 'ramesh@college.edu', role: 'teacher', details: 'Marked attendance for Period 1 - MPC-A', timestamp: '2025-07-05 07:45:00', ipAddress: '192.168.1.101', browser: 'Chrome 125', device: 'Mobile', type: 'attendance' },
-  { id: '3', action: 'Quiz Created', user: 'ramesh@college.edu', role: 'teacher', details: 'Created "Calculus Test 5" for MPC-A', timestamp: '2025-07-04 14:20:00', ipAddress: '192.168.1.101', browser: 'Chrome 125', device: 'Desktop', type: 'quiz' },
-  { id: '4', action: 'Leave Approved', user: 'principal@collegedost.com', role: 'principal', details: 'Approved casual leave for Prof. Kavita Sharma (Jul 14-16)', timestamp: '2025-07-05 09:15:00', ipAddress: '192.168.1.100', browser: 'Chrome 125', device: 'Desktop', type: 'leave' },
-  { id: '5', action: 'Login Failed', user: 'unknown@attempt.com', role: 'unknown', details: 'Failed login attempt with incorrect credentials', timestamp: '2025-07-05 03:22:00', ipAddress: '203.0.113.50', browser: 'Firefox 120', device: 'Desktop', type: 'login' },
-  { id: '6', action: 'Teacher Approved', user: 'principal@collegedost.com', role: 'principal', details: 'Approved teacher registration: Ankit Sharma (Physics)', timestamp: '2025-07-03 11:00:00', ipAddress: '192.168.1.100', browser: 'Chrome 125', device: 'Desktop', type: 'admin' },
-  { id: '7', action: 'System Backup', user: 'system', role: 'system', details: 'Automated daily backup completed successfully', timestamp: '2025-07-05 02:00:00', ipAddress: '127.0.0.1', browser: '-', device: 'Server', type: 'system' },
-  { id: '8', action: 'Attendance Edited', user: 'ramesh@college.edu', role: 'teacher', details: 'Edited attendance record for Period 3 - MPC-B', timestamp: '2025-07-04 10:30:00', ipAddress: '192.168.1.101', browser: 'Chrome 125', device: 'Desktop', type: 'attendance' },
-];
-
 const typeColors: Record<string, string> = {
   login: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
   attendance: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20',
@@ -62,6 +51,19 @@ export default function AuditLogsPage() {
   const [search, setSearch] = useState('');
   const [filterType, setFilterType] = useState('all');
   const [selectedLog, setSelectedLog] = useState<AuditEntry | null>(null);
+  const [logs, setLogs] = useState<AuditEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  React.useEffect(() => {
+    fetch('/api/audit-logs')
+      .then(res => res.json())
+      .then(data => {
+        if (data.logs) {
+          setLogs(data.logs);
+        }
+      })
+      .finally(() => setLoading(false));
+  }, []);
 
   const filtered = logs.filter(l => {
     const matchSearch = l.user.toLowerCase().includes(search.toLowerCase()) || l.details.toLowerCase().includes(search.toLowerCase());
@@ -69,7 +71,12 @@ export default function AuditLogsPage() {
     return matchSearch && matchType;
   });
 
-  const todayCount = logs.filter(l => l.timestamp.startsWith('2025-07-05')).length;
+  const todayCount = logs.filter(l => {
+    // If we formatted with en-IN, it might look like DD/MM/YYYY or YYYY-MM-DD depending on options
+    // Let's just check if it contains today's date in IST
+    const today = new Date().toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', year: 'numeric', month: '2-digit', day: '2-digit' });
+    return l.timestamp.includes(today);
+  }).length;
 
   return (
     <DashboardLayout role="principal" userName="Principal" userEmail="principal@collegedost.com">

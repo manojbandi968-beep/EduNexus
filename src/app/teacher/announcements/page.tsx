@@ -33,13 +33,10 @@ interface Announcement {
   createdAt: string;
 }
 
-const announcements: Announcement[] = [
-  { id: '1', title: 'Staff Meeting Tomorrow', content: 'All teachers are requested to attend the staff meeting tomorrow at 3:30 PM in the conference hall. Attendance is mandatory.', type: 'meeting', publisherName: 'Principal', createdAt: '2025-07-04' },
-  { id: '2', title: 'Mid-term Exam Schedule Released', content: 'The mid-term examination schedule has been released. Please check the timetable section for details.', type: 'exam', publisherName: 'Principal', createdAt: '2025-07-03' },
-  { id: '3', title: 'College Closed for Independence Day', content: 'The college will remain closed on August 15th for Independence Day celebrations.', type: 'holiday', publisherName: 'Principal', createdAt: '2025-07-02' },
-  { id: '4', title: 'Emergency: Power Maintenance', content: 'Power maintenance is scheduled for this Saturday from 10 AM to 2 PM. Study hours will be adjusted accordingly.', type: 'emergency', publisherName: 'Principal', createdAt: '2025-07-01' },
-  { id: '5', title: 'Updated Question Paper Format', content: 'The examination committee has released the new question paper format for mid-term exams. Please download from the portal.', type: 'notice', publisherName: 'Principal', createdAt: '2025-06-28' },
-];
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSocket, useSocketEvent } from '@/lib/socket/client';
+import { SOCKET_EVENTS } from '@/lib/socket/events';
+import { useAuth } from '@/contexts/AuthContext';
 
 const typeColors: Record<AnnouncementType, string> = {
   notice: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
@@ -50,23 +47,35 @@ const typeColors: Record<AnnouncementType, string> = {
 };
 
 export default function TeacherAnnouncements() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const socket = useSocket();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Announcement | null>(null);
 
-  const filtered = announcements.filter(a =>
+  const { data: announcements = [], isLoading } = useQuery({
+    queryKey: ['announcements', 'teacher'],
+    queryFn: () => fetch('/api/announcements?role=teacher').then(res => res.json()).then(data => data.records || []),
+  });
+
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_CREATED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['announcements', 'teacher'] });
+  });
+
+  const filtered = announcements.filter((a: Announcement) =>
     a.title.toLowerCase().includes(search.toLowerCase()) || a.content.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <DashboardLayout role="teacher" userName="Dr. Ramesh Kumar" userEmail="ramesh@college.edu">
+    <DashboardLayout role="teacher" userName={user?.displayName || 'Teacher'} userEmail={user?.email || 'teacher@collegedost.com'}>
       <div className="space-y-6 pb-20 lg:pb-8">
         <PageHeader title="Announcements" description="View announcements from the Principal" />
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard title="Total" value={announcements.length} icon={<Megaphone className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
-          <StatCard title="Meetings" value={announcements.filter(a => a.type === 'meeting').length} icon={<Megaphone className="h-5 w-5 text-blue-500" />} iconBg="bg-blue-500/10" delay={0.1} />
-          <StatCard title="Exams" value={announcements.filter(a => a.type === 'exam').length} icon={<Megaphone className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.2} />
-          <StatCard title="Holidays" value={announcements.filter(a => a.type === 'holiday' || a.type === 'emergency').length} icon={<Megaphone className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.3} />
+          <StatCard title="Meetings" value={announcements.filter((a: Announcement) => a.type === 'meeting').length} icon={<Megaphone className="h-5 w-5 text-blue-500" />} iconBg="bg-blue-500/10" delay={0.1} />
+          <StatCard title="Exams" value={announcements.filter((a: Announcement) => a.type === 'exam').length} icon={<Megaphone className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.2} />
+          <StatCard title="Holidays" value={announcements.filter((a: Announcement) => a.type === 'holiday' || a.type === 'emergency').length} icon={<Megaphone className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.3} />
         </div>
 
         <Card className="glass-card border-0">
@@ -83,7 +92,7 @@ export default function TeacherAnnouncements() {
                   <p className="text-sm font-medium">No announcements found</p>
                 </div>
               ) : (
-                filtered.map((ann, i) => (
+                filtered.map((ann: Announcement, i: number) => (
                   <motion.div
                     key={ann.id}
                     initial={{ y: 5, opacity: 0 }}

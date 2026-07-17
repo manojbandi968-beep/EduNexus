@@ -33,90 +33,58 @@ import {
   Tooltip as RechartsTooltip,
 } from 'recharts';
 
-
-const weeklyData = [
-  { day: 'Mon', present: 42, late: 3, absent: 2 },
-  { day: 'Tue', present: 40, late: 5, absent: 2 },
-  { day: 'Wed', present: 44, late: 2, absent: 1 },
-  { day: 'Thu', present: 38, late: 4, absent: 5 },
-  { day: 'Fri', present: 43, late: 3, absent: 1 },
-  { day: 'Sat', present: 41, late: 2, absent: 4 },
-];
-
-interface AttendanceRecord {
-  id: string;
-  name: string;
-  status: 'present' | 'late' | 'absent';
-  checkIn: string;
-  date: string;
-}
-
-const records: AttendanceRecord[] = [
-  { id: '1', name: 'Dr. Ramesh Kumar', status: 'present', checkIn: '07:45 AM', date: '2025-07-05' },
-  { id: '2', name: 'Prof. S. Lakshmi', status: 'present', checkIn: '07:55 AM', date: '2025-07-05' },
-  { id: '3', name: 'Dr. Sunita Desai', status: 'late', checkIn: '09:10 AM', date: '2025-07-05' },
-  { id: '4', name: 'Dr. Venkat Rao', status: 'present', checkIn: '07:30 AM', date: '2025-07-05' },
-  { id: '5', name: 'Prof. Meera Nair', status: 'present', checkIn: '07:50 AM', date: '2025-07-05' },
-  { id: '6', name: 'Prof. Kavita Sharma', status: 'absent', checkIn: '-', date: '2025-07-05' },
-  { id: '7', name: 'Dr. Arjun Singh', status: 'present', checkIn: '08:00 AM', date: '2025-07-05' },
-  { id: '8', name: 'Prof. Neha Gupta', status: 'absent', checkIn: '-', date: '2025-07-05' },
-];
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSocket, useSocketEvent } from '@/lib/socket/client';
+import { SOCKET_EVENTS } from '@/lib/socket/events';
 
 function getInitials(name: string) { return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2); }
 
 const statusColors = { present: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', late: 'bg-amber-500/10 text-amber-600 border-amber-500/20', absent: 'bg-red-500/10 text-red-600 border-red-500/20' };
 
+const weeklyData = [
+  { day: 'Mon', present: 145, late: 12, absent: 5 },
+  { day: 'Tue', present: 150, late: 8, absent: 4 },
+  { day: 'Wed', present: 148, late: 10, absent: 4 },
+  { day: 'Thu', present: 142, late: 15, absent: 5 },
+  { day: 'Fri', present: 146, late: 11, absent: 5 },
+];
+
 export default function AttendancePage() {
+  const queryClient = useQueryClient();
+  const socket = useSocket();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const todayStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-  const store = useSyncExternalStore(subscribe, getData, getData);
+  
+  useSocketEvent(socket ? SOCKET_EVENTS.ATTENDANCE_UPDATED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['attendance'] });
+  });
 
-  const filtered = [
-    ...store.attendance.map(a => ({
-      id: `store-${a.teacherName}-${a.date}`,
-      name: a.teacherName,
-      status: a.status as 'present' | 'late' | 'absent',
-      checkIn: a.time,
-      date: a.date,
-    })),
-    ...records,
-  ].filter(r => {
+  const todayStr = new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+  const { data: fetchRecords = [] } = useQuery({
+    queryKey: ['attendance'],
+    queryFn: () => fetch('/api/attendance').then(r => r.json()).then(d => d.records || []),
+    refetchInterval: 30000,
+  });
+
+  const recordsData = fetchRecords.map((r: any) => ({
+    id: r.id,
+    name: r.teacherName || r.mentorName || 'Unknown',
+    role: r.role,
+    status: r.status || 'present',
+    checkIn: r.checkIn || '-',
+    date: r.date,
+  }));
+
+  const filtered = recordsData.filter((r: any) => {
     const matchSearch = r.name.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || r.status === filterStatus;
     return matchSearch && matchStatus;
   });
 
-  const present = [
-    ...store.attendance.map(a => ({
-      id: `store-${a.teacherName}-${a.date}`,
-      name: a.teacherName,
-      status: a.status as 'present' | 'late' | 'absent',
-      checkIn: a.time,
-      date: a.date,
-    })),
-    ...records,
-  ].filter(r => r.status === 'present').length;
-  const late = [
-    ...store.attendance.map(a => ({
-      id: `store-${a.teacherName}-${a.date}`,
-      name: a.teacherName,
-      status: a.status as 'present' | 'late' | 'absent',
-      checkIn: a.time,
-      date: a.date,
-    })),
-    ...records,
-  ].filter(r => r.status === 'late').length;
-  const absent = [
-    ...store.attendance.map(a => ({
-      id: `store-${a.teacherName}-${a.date}`,
-      name: a.teacherName,
-      status: a.status as 'present' | 'late' | 'absent',
-      checkIn: a.time,
-      date: a.date,
-    })),
-    ...records,
-  ].filter(r => r.status === 'absent').length;
+  const present = recordsData.filter((r: any) => r.status === 'present').length;
+  const late = recordsData.filter((r: any) => r.status === 'late').length;
+  const absent = recordsData.filter((r: any) => r.status === 'absent').length;
 
   return (
     <DashboardLayout role="principal" userName="Principal" userEmail="principal@collegedost.com">
@@ -129,26 +97,8 @@ export default function AttendancePage() {
         </PageHeader>
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <StatCard title="Total Teachers" value={[
-            ...store.attendance.map(a => ({
-              id: `store-${a.teacherName}-${a.date}`,
-              name: a.teacherName,
-              status: a.status as 'present' | 'late' | 'absent',
-              checkIn: a.time,
-              date: a.date,
-            })),
-            ...records,
-          ].length} icon={<ClipboardCheck className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
-          <StatCard title="Present" value={present} icon={<ClipboardCheck className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" description={`${Math.round((present / [
-            ...store.attendance.map(a => ({
-              id: `store-${a.teacherName}-${a.date}`,
-              name: a.teacherName,
-              status: a.status as 'present' | 'late' | 'absent',
-              checkIn: a.time,
-              date: a.date,
-            })),
-            ...records,
-          ].length) * 100)}%`} delay={0.1} />
+          <StatCard title="Total Staff" value={recordsData.length} icon={<ClipboardCheck className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
+          <StatCard title="Present" value={present} icon={<ClipboardCheck className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" description={`${Math.round(recordsData.length > 0 ? (present / recordsData.length) * 100 : 0)}%`} delay={0.1} />
           <StatCard title="Late" value={late} icon={<Clock className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.2} />
           <StatCard title="Absent" value={absent} icon={<ClipboardCheck className="h-5 w-5 text-red-500" />} iconBg="bg-red-500/10" delay={0.3} />
         </div>
@@ -176,8 +126,14 @@ export default function AttendancePage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                {filtered.map((r, i) => (
-                  <motion.div key={r.id} initial={{ y: 5, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ delay: i * 0.02 }} className="flex items-center justify-between rounded-xl bg-muted/30 p-3">
+                {fetchRecords.map((r: any, i: number) => (
+                  <motion.div
+                    key={r.id || i}
+                    initial={{ y: 5, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    transition={{ delay: i * 0.05 }}
+                    className="group flex items-center justify-between rounded-xl bg-muted/30 p-3 hover:bg-muted/50 transition-colors"
+                  >
                     <div className="flex items-center gap-3">
                       <Avatar className="h-8 w-8"><AvatarFallback className="bg-primary/10 text-[10px] font-bold text-primary">{getInitials(r.name)}</AvatarFallback></Avatar>
                       <div>
@@ -187,7 +143,7 @@ export default function AttendancePage() {
                     </div>
                     <div className="flex items-center gap-3">
                       <span className="text-xs text-muted-foreground">{r.checkIn}</span>
-                      <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${statusColors[r.status]}`}>{r.status}</Badge>
+                      <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${statusColors[r.status as 'present' | 'late' | 'absent']}`}>{r.status}</Badge>
                     </div>
                   </motion.div>
                 ))}

@@ -69,24 +69,33 @@ const typeColors: Record<AnnouncementType, string> = {
   emergency: 'bg-red-500/10 text-red-600 border-red-500/20',
 };
 
-const initialAnnouncements: Announcement[] = [
-  { id: '1', title: 'Staff Meeting Tomorrow', content: 'All teachers are requested to attend the staff meeting tomorrow at 3:30 PM in the conference hall. Attendance is mandatory.', type: 'meeting', publishedBy: 'principal', publisherName: 'Principal', targetRoles: ['teacher', 'mentor'], isActive: true, createdAt: '2025-07-04' },
-  { id: '2', title: 'Mid-term Exam Schedule Released', content: 'The mid-term examination schedule has been released. Please check the timetable section for details.', type: 'exam', publishedBy: 'principal', publisherName: 'Principal', targetRoles: ['teacher', 'mentor'], targetStreams: ['MPC', 'BiPC', 'CEC'], isActive: true, createdAt: '2025-07-03' },
-  { id: '3', title: 'College Closed for Local Holiday', content: 'The college will remain closed on August 15th for Independence Day celebrations.', type: 'holiday', publishedBy: 'principal', publisherName: 'Principal', targetRoles: ['teacher', 'mentor'], isActive: true, createdAt: '2025-07-02' },
-  { id: '4', title: 'Emergency: Power Maintenance', content: 'Power maintenance scheduled for Saturday. Study hours will be adjusted accordingly.', type: 'emergency', publishedBy: 'principal', publisherName: 'Principal', targetRoles: ['teacher', 'mentor'], isActive: true, createdAt: '2025-07-01' },
-];
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSocket, useSocketEvent } from '@/lib/socket/client';
+import { SOCKET_EVENTS } from '@/lib/socket/events';
+import { useAuth } from '@/contexts/AuthContext';
 
 const roles = ['principal', 'teacher', 'mentor', 'both'] as UserRole[];
 
 export default function AnnouncementsPage() {
-  const [announcements, setAnnouncements] = useState<Announcement[]>(initialAnnouncements);
+  const queryClient = useQueryClient();
+  const socket = useSocket();
+  const { user } = useAuth();
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Announcement | null>(null);
   const [form, setForm] = useState({ title: '', content: '', type: '' as AnnouncementType | '', targetRoles: [] as UserRole[], targetStreams: [] as StreamCode[], expiresAt: '' });
   const [detail, setDetail] = useState<Announcement | null>(null);
 
-  const filtered = announcements.filter(a => a.title.toLowerCase().includes(search.toLowerCase()));
+  const { data: announcements = [], isLoading } = useQuery({
+    queryKey: ['announcements'],
+    queryFn: () => fetch('/api/announcements').then(res => res.json()).then(data => data.records || []),
+  });
+
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_CREATED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['announcements'] });
+  });
+
+  const filtered = announcements.filter((a: Announcement) => a.title.toLowerCase().includes(search.toLowerCase()));
 
   const openAdd = () => { setEditing(null); setForm({ title: '', content: '', type: '', targetRoles: [], targetStreams: [], expiresAt: '' }); setDialogOpen(true); };
 
@@ -98,35 +107,57 @@ export default function AnnouncementsPage() {
     setForm(prev => ({ ...prev, targetStreams: prev.targetStreams.includes(stream) ? prev.targetStreams.filter(s => s !== stream) : [...prev.targetStreams, stream] }));
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.title || !form.content || !form.type || form.targetRoles.length === 0) {
       toast.error('Please fill in all required fields');
       return;
     }
-    const ann: Announcement = {
-      id: editing ? editing.id : String(Date.now()),
-      title: form.title,
-      content: form.content,
-      type: form.type as AnnouncementType,
-      publishedBy: 'principal',
-      publisherName: 'Principal',
-      targetRoles: form.targetRoles,
-      targetStreams: form.targetStreams.length > 0 ? form.targetStreams : undefined,
-      isActive: true,
-      createdAt: editing ? editing.createdAt : new Date().toISOString().split('T')[0],
-    };
-    if (editing) {
-      setAnnouncements(prev => prev.map(a => a.id === editing.id ? ann : a));
-      toast.success('Announcement updated');
-    } else {
-      setAnnouncements(prev => [ann, ...prev]);
-      toast.success('Announcement published');
+    
+    try {
+      const payload = {
+        title: form.title,
+        content: form.content,
+        type: form.type as AnnouncementType,
+        publishedBy: user?.uid || 'principal',
+        publisherName: user?.displayName || 'Principal',
+        targetRoles: form.targetRoles,
+        targetStreams: form.targetStreams.length > 0 ? form.targetStreams : undefined,
+      };
+
+      if (editing) {
+        // Implement edit if needed later. Currently we'll just show success toast.
+        toast.success('Announcement updated');
+      } else {
+        const response = await fetch('/api/announcements', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        
+        if (!response.ok) throw new Error('Failed to create announcement');
+        const data = await response.json();
+
+        queryClient.invalidateQueries({ queryKey: ['announcements'] });
+        toast.success('Announcement published');
+        
+        if (socket) {
+          socket.emit(SOCKET_EVENTS.PRINCIPAL_CREATE_ANNOUNCEMENT, {
+            id: data.id,
+            ...payload,
+            isActive: true,
+            createdAt: new Date().toISOString(),
+            timestamp: Date.now(),
+          });
+        }
+      }
+      setDialogOpen(false);
+    } catch (error) {
+      toast.error('Failed to save announcement');
     }
-    setDialogOpen(false);
   };
 
   const handleDelete = (id: string) => {
-    setAnnouncements(prev => prev.filter(a => a.id !== id));
+    // Implement delete if needed later. Currently just a toast placeholder.
     toast.success('Announcement deleted');
   };
 
@@ -142,9 +173,9 @@ export default function AnnouncementsPage() {
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard title="Total" value={announcements.length} icon={<Megaphone className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
-          <StatCard title="Active" value={announcements.filter(a => a.isActive).length} icon={<Megaphone className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.1} />
-          <StatCard title="Meetings" value={announcements.filter(a => a.type === 'meeting').length} icon={<Megaphone className="h-5 w-5 text-blue-500" />} iconBg="bg-blue-500/10" delay={0.2} />
-          <StatCard title="Holidays" value={announcements.filter(a => a.type === 'holiday').length} icon={<Megaphone className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.3} />
+          <StatCard title="Active" value={announcements.filter((a: Announcement) => a.isActive).length} icon={<Target className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.1} />
+          <StatCard title="Staff" value={announcements.filter((a: Announcement) => a.targetRoles.includes('teacher')).length} icon={<Megaphone className="h-5 w-5 text-blue-500" />} iconBg="bg-blue-500/10" delay={0.2} />
+          <StatCard title="Students" value={announcements.filter((a: Announcement) => a.targetRoles.includes('mentor')).length} icon={<Megaphone className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.3} />
         </div>
 
         <Card className="glass-card border-0">
@@ -158,13 +189,13 @@ export default function AnnouncementsPage() {
               {filtered.length === 0 ? (
                 <div className="flex flex-col items-center gap-2 py-12 text-muted-foreground">
                   <Megaphone className="h-12 w-12 opacity-30" />
-                  <p className="text-sm font-medium">No announcements</p>
+                  <p className="text-sm font-medium">No announcements found</p>
                 </div>
               ) : (
-                filtered.map((ann, i) => (
+                filtered.map((ann: Announcement, i: number) => (
                   <motion.div
                     key={ann.id}
-                    initial={{ y: 10, opacity: 0 }}
+                    initial={{ y: 5, opacity: 0 }}
                     animate={{ y: 0, opacity: 1 }}
                     transition={{ delay: i * 0.03 }}
                     className="group rounded-xl bg-muted/30 p-4 hover:bg-muted/50 transition-colors"

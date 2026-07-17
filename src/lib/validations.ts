@@ -146,6 +146,56 @@ export const settingsSchema = z.object({
   }),
 });
 
+// ---- Task Validations ----
+
+export const taskSchema = z.object({
+  title: z.string().min(3, 'Title is required').max(200),
+  description: z.string().min(10, 'Description must be at least 10 characters'),
+  assignedTo: z.string().min(1, 'Assignee is required'),
+  dueDate: z.string().min(1, 'Due date is required'),
+  priority: z.enum(['low', 'medium', 'high']).default('medium'),
+});
+
+// ---- Event Validations ----
+
+export const eventSchema = z.object({
+  title: z.string().min(3, 'Title is required').max(200),
+  description: z.string().min(10, 'Description is required'),
+  startDate: z.string().min(1, 'Start date is required'),
+  endDate: z.string().min(1, 'End date is required'),
+  type: z.enum(['academic', 'holiday', 'meeting', 'event', 'exam']),
+  targetRoles: z.array(z.enum(['principal', 'teacher', 'mentor', 'both'])).min(1, 'Select at least one role'),
+});
+
+// ---- Resource Validations ----
+
+export const resourceSchema = z.object({
+  title: z.string().min(3, 'Title is required').max(200),
+  description: z.string().min(10, 'Description is required'),
+  fileUrl: z.string().url('Valid file URL required'),
+  fileType: z.string().min(1, 'File type is required'),
+  fileSize: z.number().min(1, 'File size is required'),
+  targetRoles: z.array(z.enum(['principal', 'teacher', 'mentor', 'both'])).min(1, 'Select at least one role'),
+  targetStreams: z.array(z.enum(['MPC', 'BiPC', 'CEC'])).optional(),
+  subjectId: z.string().optional(),
+  sectionId: z.string().optional(),
+});
+
+// ---- Student Report Validations ----
+
+export const studentReportSchema = z.object({
+  studentId: z.string().min(1, 'Student is required'),
+  date: z.string().min(1, 'Date is required'),
+  studyHour: z.union([z.literal(1), z.literal(2)]),
+  topic: z.string().min(2, 'Topic is required'),
+  observations: z.string().min(10, 'Observations must be at least 10 characters'),
+  strengths: z.array(z.string()).optional(),
+  areasOfImprovement: z.array(z.string()).optional(),
+  actionItems: z.array(z.string()).optional(),
+  studentCount: z.number().min(1, 'Student count is required'),
+  duration: z.number().min(1, 'Duration is required'),
+});
+
 // ---- Type Exports ----
 
 export type PrincipalLoginInput = z.infer<typeof principalLoginSchema>;
@@ -161,3 +211,7 @@ export type QuizResultInput = z.infer<typeof quizResultSchema>;
 export type LeaveRequestInput = z.infer<typeof leaveRequestSchema>;
 export type AnnouncementInput = z.infer<typeof announcementSchema>;
 export type SettingsInput = z.infer<typeof settingsSchema>;
+export type TaskInput = z.infer<typeof taskSchema>;
+export type EventInput = z.infer<typeof eventSchema>;
+export type ResourceInput = z.infer<typeof resourceSchema>;
+export type StudentReportInput = z.infer<typeof studentReportSchema>;

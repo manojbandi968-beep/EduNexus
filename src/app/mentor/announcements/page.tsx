@@ -33,13 +33,10 @@ interface Announcement {
   createdAt: string;
 }
 
-const announcements: Announcement[] = [
-  { id: '1', title: 'Study Hour Timing Change', content: 'From next week, Study Hour 1 will start at 5:00 PM instead of 5:30 PM. Study Hour 2 remains unchanged.', type: 'notice', publisherName: 'Principal', createdAt: '2025-07-04' },
-  { id: '2', title: 'Staff Meeting Tomorrow', content: 'All mentors are requested to attend the staff meeting tomorrow at 3:00 PM in the conference hall.', type: 'meeting', publisherName: 'Principal', createdAt: '2025-07-03' },
-  { id: '3', title: 'Holiday on August 15th', content: 'College will remain closed for Independence Day. Study hours are cancelled.', type: 'holiday', publisherName: 'Principal', createdAt: '2025-07-02' },
-  { id: '4', title: 'New Attendance Policy', content: 'Mentors are required to check in within the first 10 minutes of the study hour. Late check-ins will be marked as late.', type: 'notice', publisherName: 'Principal', createdAt: '2025-06-30' },
-  { id: '5', title: 'Special Doubt Session', content: 'Extra doubt session scheduled for BiPC batch this Saturday from 10 AM to 12 PM.', type: 'exam', publisherName: 'Principal', createdAt: '2025-06-28' },
-];
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSocket, useSocketEvent } from '@/lib/socket/client';
+import { SOCKET_EVENTS } from '@/lib/socket/events';
+import { useAuth } from '@/contexts/AuthContext';
 
 const typeColors: Record<AnnouncementType, string> = {
   notice: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
@@ -50,23 +47,35 @@ const typeColors: Record<AnnouncementType, string> = {
 };
 
 export default function MentorAnnouncements() {
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const socket = useSocket();
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Announcement | null>(null);
 
-  const filtered = announcements.filter(a =>
+  const { data: announcements = [], isLoading } = useQuery({
+    queryKey: ['announcements', 'mentor'],
+    queryFn: () => fetch('/api/announcements?role=mentor').then(res => res.json()).then(data => data.records || []),
+  });
+
+  useSocketEvent(socket ? SOCKET_EVENTS.ANNOUNCEMENT_CREATED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['announcements', 'mentor'] });
+  });
+
+  const filtered = announcements.filter((a: Announcement) =>
     a.title.toLowerCase().includes(search.toLowerCase()) || a.content.toLowerCase().includes(search.toLowerCase())
   );
 
   return (
-    <DashboardLayout role="mentor" userName="Mr. Suresh Babu" userEmail="suresh@college.edu">
+    <DashboardLayout role="mentor" userName={user?.displayName || 'Mentor'} userEmail={user?.email || 'mentor@collegedost.com'}>
       <div className="space-y-6 pb-20 lg:pb-8">
         <PageHeader title="Announcements" description="View announcements from the Principal" />
 
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard title="Total" value={announcements.length} icon={<Megaphone className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
-          <StatCard title="Notices" value={announcements.filter(a => a.type === 'notice').length} icon={<Megaphone className="h-5 w-5 text-indigo-500" />} iconBg="bg-indigo-500/10" delay={0.1} />
-          <StatCard title="Meetings" value={announcements.filter(a => a.type === 'meeting').length} icon={<Megaphone className="h-5 w-5 text-blue-500" />} iconBg="bg-blue-500/10" delay={0.2} />
-          <StatCard title="Updates" value={announcements.filter(a => a.type === 'exam' || a.type === 'holiday').length} icon={<Megaphone className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.3} />
+          <StatCard title="Notices" value={announcements.filter((a: Announcement) => a.type === 'notice').length} icon={<Megaphone className="h-5 w-5 text-indigo-500" />} iconBg="bg-indigo-500/10" delay={0.1} />
+          <StatCard title="Meetings" value={announcements.filter((a: Announcement) => a.type === 'meeting').length} icon={<Megaphone className="h-5 w-5 text-blue-500" />} iconBg="bg-blue-500/10" delay={0.2} />
+          <StatCard title="Updates" value={announcements.filter((a: Announcement) => a.type === 'exam' || a.type === 'holiday').length} icon={<Megaphone className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.3} />
         </div>
 
         <Card className="glass-card border-0">
@@ -83,7 +92,7 @@ export default function MentorAnnouncements() {
                   <p className="text-sm font-medium">No announcements found</p>
                 </div>
               ) : (
-                filtered.map((ann, i) => (
+                filtered.map((ann: Announcement, i: number) => (
                   <motion.div
                     key={ann.id}
                     initial={{ y: 5, opacity: 0 }}

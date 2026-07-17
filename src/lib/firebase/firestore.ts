@@ -42,6 +42,7 @@ export const COLLECTIONS = {
   PERFORMANCE: 'performance',
   SETTINGS: 'settings',
   AUDIT_LOGS: 'auditLogs',
+  EVENTS: 'events',
 } as const;
 
 // ---- Generic CRUD Operations ----

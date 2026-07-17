@@ -52,14 +52,9 @@ interface LeaveRequest {
   days: number;
 }
 
-const initialLeaves: LeaveRequest[] = [
-  { id: '1', teacherId: 't1', teacherName: 'Dr. Sunita Desai', type: 'sick', startDate: '2025-07-10', endDate: '2025-07-11', reason: 'Running high fever and doctor has advised rest for 2 days.', status: 'pending', appliedOn: '2025-07-08', days: 2 },
-  { id: '2', teacherId: 't2', teacherName: 'Prof. S. Lakshmi', type: 'casual', startDate: '2025-07-15', endDate: '2025-07-15', reason: 'Personal family function to attend.', status: 'pending', appliedOn: '2025-07-07', days: 1 },
-  { id: '3', teacherId: 't3', teacherName: 'Dr. Venkat Rao', type: 'emergency', startDate: '2025-07-05', endDate: '2025-07-07', reason: 'Urgent family matter requiring immediate travel to hometown.', status: 'approved', appliedOn: '2025-07-04', days: 3 },
-  { id: '4', teacherId: 't4', teacherName: 'Mr. Suresh Babu', type: 'casual', startDate: '2025-07-20', endDate: '2025-07-22', reason: 'Planned vacation with family. Will coordinate with substitute teacher.', status: 'pending', appliedOn: '2025-07-06', days: 3 },
-  { id: '5', teacherId: 't5', teacherName: 'Prof. Meera Nair', type: 'sick', startDate: '2025-07-03', endDate: '2025-07-03', reason: 'Migraine - unable to take classes today.', status: 'rejected', appliedOn: '2025-07-03', days: 1 },
-  { id: '6', teacherId: 't6', teacherName: 'Prof. Kavita Sharma', type: 'casual', startDate: '2025-07-14', endDate: '2025-07-16', reason: 'Personal work. Have arranged for classes to be covered by Prof. Meera.', status: 'approved', appliedOn: '2025-07-05', days: 3 },
-];
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSocket, useSocketEvent } from '@/lib/socket/client';
+import { SOCKET_EVENTS } from '@/lib/socket/events';
 
 const leaveTypeColors: Record<LeaveType, string> = {
   casual: 'bg-blue-500/10 text-blue-600 border-blue-500/20',
@@ -76,43 +71,68 @@ const statusColors: Record<LeaveStatus, string> = {
 function getInitials(name: string) { return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2); }
 
 export default function LeavePage() {
-  const [leaves, setLeaves] = useState<LeaveRequest[]>(initialLeaves);
+  const queryClient = useQueryClient();
+  const socket = useSocket();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
-  const store = useSyncExternalStore(subscribe, getData, getData);
 
-  const allLeaves = [
-    ...store.leaveRequests.map(l => ({
-      id: l.id,
-      teacherId: l.teacherId,
-      teacherName: l.teacherName,
-      type: l.type as LeaveType,
-      startDate: l.startDate,
-      endDate: l.endDate,
-      reason: l.reason,
-      status: l.status as LeaveStatus,
-      appliedOn: l.appliedOn,
-      days: l.days,
-    })),
-    ...leaves,
-  ];
+  const { data: allLeaves = [], isLoading } = useQuery({
+    queryKey: ['leaves'],
+    queryFn: () => fetch('/api/leaves').then(res => res.json()).then(data => data.records || []),
+  });
+
+  useSocketEvent(socket ? SOCKET_EVENTS.LEAVE_REQUESTED : '', () => {
+    queryClient.invalidateQueries({ queryKey: ['leaves'] });
+  });
+
   const [detailLeave, setDetailLeave] = useState<LeaveRequest | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ type: 'approved' | 'rejected'; leave: LeaveRequest } | null>(null);
 
-  const filtered = allLeaves.filter(l => {
+  const filtered = allLeaves.filter((l: any) => {
     const matchSearch = l.teacherName.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'all' || l.status === filterStatus;
     return matchSearch && matchStatus;
   });
 
-  const pendingCount = allLeaves.filter(l => l.status === 'pending').length;
+  const pendingCount = allLeaves.filter((l: any) => l.status === 'pending').length;
 
-  const handleAction = () => {
+  const handleAction = async () => {
     if (!confirmAction) return;
-    updateLeaveStatus(confirmAction.leave.id, confirmAction.type);
-    setLeaves(prev => prev.map(l => l.id === confirmAction.leave.id ? { ...l, status: confirmAction.type } : l));
-    toast.success(`Leave ${confirmAction.type === 'approved' ? 'approved' : 'rejected'} for ${confirmAction.leave.teacherName}`);
-    setConfirmAction(null);
+    
+    try {
+      const response = await fetch('/api/leaves', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: confirmAction.leave.id,
+          status: confirmAction.type,
+          approvedBy: 'Principal'
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to update leave');
+
+      // Invalidate to refresh UI instantly
+      queryClient.invalidateQueries({ queryKey: ['leaves'] });
+      
+      toast.success(`Leave ${confirmAction.type === 'approved' ? 'approved' : 'rejected'} for ${confirmAction.leave.teacherName}`);
+      
+      // Emit socket event to notify the teacher/mentor
+      if (socket) {
+        socket.emit(confirmAction.type === 'approved' ? SOCKET_EVENTS.PRINCIPAL_APPROVE_LEAVE : SOCKET_EVENTS.PRINCIPAL_REJECT_LEAVE, {
+          leaveId: confirmAction.leave.id,
+          teacherId: confirmAction.leave.teacherId,
+          teacherName: confirmAction.leave.teacherName,
+          status: confirmAction.type,
+          approvedBy: 'Principal',
+          timestamp: Date.now()
+        });
+      }
+    } catch (error) {
+      toast.error('Failed to update leave status. Please try again.');
+    } finally {
+      setConfirmAction(null);
+    }
   };
 
   return (
@@ -125,8 +145,8 @@ export default function LeavePage() {
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard title="Total Requests" value={allLeaves.length} icon={<CalendarOff className="h-5 w-5 text-primary" />} iconBg="bg-primary/10" delay={0} />
           <StatCard title="Pending" value={pendingCount} icon={<CalendarOff className="h-5 w-5 text-amber-500" />} iconBg="bg-amber-500/10" delay={0.1} />
-          <StatCard title="Approved" value={allLeaves.filter(l => l.status === 'approved').length} icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.2} />
-          <StatCard title="Rejected" value={allLeaves.filter(l => l.status === 'rejected').length} icon={<XCircle className="h-5 w-5 text-red-500" />} iconBg="bg-red-500/10" delay={0.3} />
+          <StatCard title="Approved" value={allLeaves.filter((l: any) => l.status === 'approved').length} icon={<CheckCircle2 className="h-5 w-5 text-emerald-500" />} iconBg="bg-emerald-500/10" delay={0.2} />
+          <StatCard title="Rejected" value={allLeaves.filter((l: any) => l.status === 'rejected').length} icon={<XCircle className="h-5 w-5 text-red-500" />} iconBg="bg-red-500/10" delay={0.3} />
         </div>
 
         <Card className="glass-card border-0">
@@ -154,7 +174,7 @@ export default function LeavePage() {
                   <p className="text-sm font-medium">No leave requests found</p>
                 </div>
               ) : (
-                filtered.map((leave, i) => (
+                filtered.map((leave: any, i: number) => (
                   <motion.div
                     key={leave.id}
                     initial={{ y: 10, opacity: 0 }}
@@ -169,8 +189,8 @@ export default function LeavePage() {
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-semibold">{leave.teacherName}</p>
-                          <Badge variant="outline" className={`rounded-lg text-[10px] px-2 ${leaveTypeColors[leave.type]}`}>{leave.type}</Badge>
-                          <Badge variant="outline" className={`rounded-lg text-[10px] px-2 ${statusColors[leave.status]}`}>{leave.status}</Badge>
+                          <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${leaveTypeColors[leave.type as LeaveType]}`}>{leave.type}</Badge>
+                          <Badge variant="outline" className={`rounded-lg text-[10px] px-2 capitalize ${statusColors[leave.status as LeaveStatus]}`}>{leave.status}</Badge>
                         </div>
                         <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
                           <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{leave.startDate} → {leave.endDate}</span>

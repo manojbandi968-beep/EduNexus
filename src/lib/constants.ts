@@ -140,6 +140,7 @@ export const TEACHER_NAV_ITEMS: NavItem[] = [
 export const MENTOR_NAV_ITEMS: NavItem[] = [
   { label: 'Dashboard', href: '/mentor', icon: 'LayoutDashboard' },
   { label: 'Attendance', href: '/mentor/attendance', icon: 'ClipboardCheck' },
+  { label: 'Leave', href: '/mentor/leave', icon: 'CalendarOff' },
   { label: 'Announcements', href: '/mentor/announcements', icon: 'Megaphone' },
   { label: 'Campus Map', href: '/mentor/campus', icon: 'Map' },
 ];

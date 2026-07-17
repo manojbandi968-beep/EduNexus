@@ -14,6 +14,7 @@ export interface SessionUser {
   email: string;
   role: UserRole;
   name: string;
+  displayName: string;
   photoURL?: string;
 }
 
@@ -55,6 +56,7 @@ export async function verifySession(): Promise<SessionUser | null> {
       email: decodedClaims.email || '',
       role: (decodedClaims.role as UserRole) || 'teacher',
       name: decodedClaims.name || '',
+      displayName: decodedClaims.name || '',
       photoURL: decodedClaims.picture,
     };
   } catch (error) {
@@ -71,3 +73,5 @@ export async function destroySession(): Promise<void> {
 export async function getSessionUser(): Promise<SessionUser | null> {
   return verifySession();
 }
+
+export const getServerSession = getSessionUser;

@@ -32,9 +32,55 @@ export async function POST(request: NextRequest) {
       path: '/',
     });
 
+    const userAgent = request.headers.get('user-agent') || '';
+    const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';
+    const browser = userAgent.match(/(Chrome|Firefox|Safari|Edge|Opera)/i)?.[1] || 'Unknown';
+    const device = userAgent.includes('Mobile') ? 'Mobile' : 'Desktop';
+
+    // Log the successful login attempt
+    try {
+      const { logLoginAttempt } = await import('@/lib/audit');
+      await logLoginAttempt({
+        email: decodedToken.email || 'unknown@email.com',
+        success: true,
+        role: role as any,
+        ipAddress,
+        userAgent,
+        browser,
+        device
+      });
+    } catch (e) {
+      console.error('Failed to log login attempt', e);
+    }
+
     return NextResponse.json({ success: true, role });
   } catch (error) {
     console.error('Session creation error:', error);
     return NextResponse.json({ error: 'Failed to create session' }, { status: 401 });
+  }
+}
+
+export async function GET() {
+  try {
+    const cookieStore = await cookies();
+    const sessionCookie = cookieStore.get('__session')?.value;
+    
+    if (!sessionCookie) {
+      return NextResponse.json({ user: null });
+    }
+    
+    const auth = adminAuth();
+    const decodedClaims = await auth.verifySessionCookie(sessionCookie, true);
+    
+    return NextResponse.json({
+      user: {
+        uid: decodedClaims.uid,
+        email: decodedClaims.email,
+        role: decodedClaims.role || 'teacher',
+        displayName: decodedClaims.name || 'User',
+      }
+    });
+  } catch (error) {
+    return NextResponse.json({ user: null });
   }
 }

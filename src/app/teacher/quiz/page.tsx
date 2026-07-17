@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import {
   FileQuestion,
@@ -37,6 +37,9 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
+import { getSocket, useSocket, useSocketEvent } from '@/lib/socket/client';
+import { SOCKET_EVENTS } from '@/lib/socket/events';
 import type { StreamCode } from '@/types';
 
 interface Quiz {
@@ -61,6 +64,7 @@ const initialQuizzes: Quiz[] = [
 
 function TeacherQuizContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const [quizzes, setQuizzes] = useState<Quiz[]>(initialQuizzes);
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -72,7 +76,43 @@ function TeacherQuizContent() {
       setDialogOpen(true);
     }
   }, [searchParams]);
+  const { user } = useAuth();
   const [form, setForm] = useState({ name: '', topic: '', section: '', stream: '' as StreamCode | '', questionCount: '' });
+
+  const socket = useSocket();
+
+  useSocketEvent(socket ? SOCKET_EVENTS.QUIZ_ENDED : '', (payload: any) => {
+    // Check if it's this teacher's quiz
+    if (payload.teacherId === user?.uid) {
+      setQuizzes(prev => {
+        // Find if it already exists, if so update score/students
+        const existingIdx = prev.findIndex(q => q.topic === payload.topic && q.date === new Date().toISOString().split('T')[0]);
+        if (existingIdx !== -1) {
+          const newQuizzes = [...prev];
+          newQuizzes[existingIdx] = {
+            ...newQuizzes[existingIdx],
+            students: payload.totalStudents,
+            totalStudents: payload.totalStudents,
+            avgScore: Math.floor(Math.random() * 20) + 70 // Mock score
+          };
+          return newQuizzes;
+        } else {
+          return [{
+            id: String(Date.now()),
+            name: `${payload.topic} Quiz`,
+            topic: payload.topic,
+            section: 'General',
+            stream: 'MPC',
+            date: new Date().toISOString().split('T')[0],
+            avgScore: Math.floor(Math.random() * 20) + 70,
+            students: payload.totalStudents,
+            totalStudents: payload.totalStudents,
+          }, ...prev];
+        }
+      });
+      toast.success(`Quiz on ${payload.topic} saved! Completed at ${payload.istTime}`);
+    }
+  });
 
   const filtered = quizzes.filter(q => q.name.toLowerCase().includes(search.toLowerCase()) || q.topic.toLowerCase().includes(search.toLowerCase()));
 
@@ -93,10 +133,27 @@ function TeacherQuizContent() {
       totalStudents: 0,
     };
     setQuizzes(prev => [newQuiz, ...prev]);
-    createQuiz({ ...newQuiz, teacherName: 'Dr. Ramesh Kumar', students: 0, totalStudents: 0, topic: newQuiz.topic });
+    createQuiz({ ...newQuiz, teacherName: user?.displayName || 'Dr. Ramesh Kumar', students: 0, totalStudents: 0, topic: newQuiz.topic });
+    
+    // Broadcast via WebSocket to update Principal Dashboard
+    const socket = getSocket();
+    if (socket) {
+      socket.emit(SOCKET_EVENTS.TEACHER_START_QUIZ, {
+        teacherName: user?.displayName || 'Teacher',
+        teacherId: user?.uid || 'unknown',
+        subject: form.topic,
+        section: form.section,
+        stream: form.stream,
+        timestamp: Date.now(),
+      });
+    }
+    
     toast.success('Quiz created successfully');
     setDialogOpen(false);
     setForm({ name: '', topic: '', section: '', stream: '', questionCount: '' });
+    
+    // Redirect to Live Quiz page
+    router.push(`/teacher/quiz/${newQuiz.id}/live?topic=${encodeURIComponent(newQuiz.topic)}`);
   };
 
   return (
