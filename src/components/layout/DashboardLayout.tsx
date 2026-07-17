@@ -50,12 +50,11 @@ export function DashboardLayout({
   const handleLogout = useCallback(async () => {
     try {
       await signOut();
-      toast.success('Logged out successfully');
-      router.push('/');
+      window.location.href = '/';
     } catch {
       toast.error('Logout failed');
     }
-  }, [router]);
+  }, []);
 
   const navItems =
     role === 'principal'

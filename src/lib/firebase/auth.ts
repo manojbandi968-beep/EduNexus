@@ -61,9 +61,9 @@ export async function sendPhoneOTP(phoneNumber: string): Promise<ConfirmationRes
 // ---- Sign Out ----
 
 export async function signOut(): Promise<void> {
-  await firebaseSignOut(auth);
-  // Clear session cookie via server action
+  // Clear session cookie via server action FIRST to prevent race conditions
   await fetch('/api/auth/logout', { method: 'POST' });
+  await firebaseSignOut(auth);
 }
 
 // ---- Auth State Listener ----
