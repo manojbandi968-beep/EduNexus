@@ -109,6 +109,7 @@ export default function MentorDashboard() {
   });
   const [events, setEvents] = useState<CollegeEvent[]>([]);
 
+  const [currentHour, setCurrentHour] = useState(new Date().getHours());
   const [greeting, setGreeting] = useState('Welcome');
 
   React.useEffect(() => {
@@ -125,8 +126,9 @@ export default function MentorDashboard() {
   }, []);
 
   React.useEffect(() => {
-    const currentHour = new Date().getHours();
-    setGreeting(currentHour < 12 ? 'Good morning' : currentHour < 17 ? 'Good afternoon' : 'Good evening');
+    const h = new Date().getHours();
+    setCurrentHour(h);
+    setGreeting(h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening');
   }, []);
 
   const { data: dashboardData, isLoading, error } = useQuery<MentorDashboardData>({
