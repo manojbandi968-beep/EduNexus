@@ -717,21 +717,7 @@ const LandingPage = () => {
                 </div>
               </div>
 
-              {/* Floating badges */}
-              <motion.div
-                animate={{
-                  y: [0, -10, 0],
-                }}
-                transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-                className="absolute -top-4 -right-4 glass-card rounded-2xl px-4 py-2 shadow-xl border border-white/10"
-              >
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-green-500/10 text-green-600 dark:text-green-400">
-                    <CheckCircle className="h-4 w-4" />
-                  </div>
-                  <span className="text-sm font-semibold text-foreground">Live Demo Available</span>
-                </div>
-              </motion.div>
+
             </div>
           </motion.div>
         </div>
