@@ -18,8 +18,10 @@ import { StatCard } from '@/components/ui/stat-card';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
 import { createDocument, COLLECTIONS } from '@/lib/firebase/firestore';
-import { getSocket } from '@/lib/socket/client';
+import { useSocket, useSocketEvent, getSocket } from '@/lib/socket/client';
 import { SOCKET_EVENTS } from '@/lib/socket/events';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import type { TeacherDashboardData } from '@/types';
 
 interface AttendanceRecord {
   date: string;
@@ -40,8 +42,16 @@ const history: AttendanceRecord[] = [
 
 export default function TeacherAttendance() {
   const { user } = useAuth();
-  const [marked, setMarked] = useState(false);
-  const checkInTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const queryClient = useQueryClient();
+  const socket = useSocket();
+
+  const { data: dashboardData } = useQuery<TeacherDashboardData>({
+    queryKey: ['teacher-dashboard'],
+    queryFn: () => fetch('/api/teacher/dashboard').then((r) => r.json()),
+  });
+
+  const marked = dashboardData?.isAttendanceMarkedToday || false;
+  const checkInTime = dashboardData?.checkInTimeToday || new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
   const present = history.filter(h => h.status === 'present').length;
   const late = history.filter(h => h.status === 'late').length;
@@ -107,7 +117,7 @@ export default function TeacherAttendance() {
             inCollege: isInsideCollege,
           });
 
-          setMarked(true);
+          queryClient.invalidateQueries({ queryKey: ['teacher-dashboard'] });
           toast.success('Attendance marked!', { description: `Checked in at ${checkInTime} · ${isInsideCollege ? 'In Campus' : 'Off Campus'}` });
         } catch {
           toast.error('Failed to mark attendance. Please try again.');

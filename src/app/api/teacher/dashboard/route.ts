@@ -154,6 +154,9 @@ export async function GET() {
       };
     });
 
+    const isAttendanceMarkedToday = todayAttendance.length > 0;
+    const checkInTimeToday = todayAttendance.length > 0 ? todayAttendance[0].checkIn : null;
+
     return NextResponse.json({
       stats,
       attendanceChartData,
@@ -162,6 +165,8 @@ export async function GET() {
       recentQuizzes,
       announcements,
       teacherName,
+      isAttendanceMarkedToday,
+      checkInTimeToday,
     } as TeacherDashboardData);
   } catch (error) {
     console.error('Teacher Dashboard API error:', error);

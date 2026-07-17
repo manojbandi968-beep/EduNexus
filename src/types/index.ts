@@ -436,6 +436,8 @@ export interface TeacherDashboardData {
   recentQuizzes: TeacherRecentQuiz[];
   announcements: TeacherAnnouncement[];
   teacherName: string;
+  isAttendanceMarkedToday?: boolean;
+  checkInTimeToday?: string | null;
 }
 
 // ---- Mentor Dashboard Types ----

@@ -102,6 +102,12 @@ export default function TeacherDashboard() {
   const [events, setEvents] = useState<CollegeEvent[]>([]);
 
   useEffect(() => {
+    if (dashboardData?.isAttendanceMarkedToday !== undefined) {
+      setAttendanceMarked(dashboardData.isAttendanceMarkedToday);
+    }
+  }, [dashboardData?.isAttendanceMarkedToday]);
+
+  useEffect(() => {
     const fetchEvents = async () => {
       try {
         const data = await getDocuments<CollegeEvent>(COLLECTIONS.EVENTS);
@@ -269,7 +275,8 @@ export default function TeacherDashboard() {
             value={`${stats.attendancePercent}%`}
             icon={<ClipboardCheck className="h-5 w-5 text-emerald-500" />}
             iconBg="bg-emerald-500/10"
-            trend={{ value: 2.1, label: 'this month' }}
+            description={attendanceMarked && dashboardData?.checkInTimeToday ? `Checked in at ${dashboardData.checkInTimeToday}` : undefined}
+            trend={!attendanceMarked ? { value: 2.1, label: 'this month' } : undefined}
             delay={0}
             href="/teacher/attendance"
           />
