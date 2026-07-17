@@ -51,7 +51,7 @@ export default function TeacherAttendance() {
   });
 
   const marked = dashboardData?.isAttendanceMarkedToday || false;
-  const checkInTime = dashboardData?.checkInTimeToday || new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+  const checkInTime = dashboardData?.checkInTimeToday || '--:--';
 
   const present = history.filter(h => h.status === 'present').length;
   const late = history.filter(h => h.status === 'late').length;
@@ -80,6 +80,7 @@ export default function TeacherAttendance() {
 
         const status = new Date().getHours() < 9 ? 'present' : 'late';
         const dateStr = new Date().toLocaleDateString('en-CA');
+        const currentCheckInTime = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
 
         try {
           await createDocument(COLLECTIONS.ATTENDANCE, {
@@ -87,7 +88,7 @@ export default function TeacherAttendance() {
             teacherName: user?.displayName || 'Unknown',
             email: user?.email || '',
             status,
-            checkIn: checkInTime,
+            checkIn: currentCheckInTime,
             date: dateStr,
             location: { lat: latitude, lng: longitude },
             inCollege: isInsideCollege,
@@ -110,7 +111,7 @@ export default function TeacherAttendance() {
             teacherName: user?.displayName || 'Unknown',
             teacherId: user?.uid || '',
             status,
-            checkInTime,
+            checkInTime: currentCheckInTime,
             date: dateStr,
             timestamp: Date.now(),
             location: { lat: latitude, lng: longitude },
@@ -118,7 +119,7 @@ export default function TeacherAttendance() {
           });
 
           queryClient.invalidateQueries({ queryKey: ['teacher-dashboard'] });
-          toast.success('Attendance marked!', { description: `Checked in at ${checkInTime} · ${isInsideCollege ? 'In Campus' : 'Off Campus'}` });
+          toast.success('Attendance marked!', { description: `Checked in at ${currentCheckInTime} · ${isInsideCollege ? 'In Campus' : 'Off Campus'}` });
         } catch {
           toast.error('Failed to mark attendance. Please try again.');
         }

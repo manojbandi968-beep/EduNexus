@@ -137,8 +137,12 @@ export default function PrincipalDashboard() {
   const [recentActivity, setRecentActivity] = useState<DashboardData['recentActivity']>([]);
   const [activityCounter, setActivityCounter] = useState(0);
 
-  const h = new Date().getHours();
-  const greeting = h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening';
+  const [greeting, setGreeting] = useState('day');
+
+  React.useEffect(() => {
+    const h = new Date().getHours();
+    setGreeting(h < 12 ? 'morning' : h < 17 ? 'afternoon' : 'evening');
+  }, []);
 
   const { data: dashboardData, isLoading, error } = useQuery<DashboardData>({
     queryKey: ['dashboard-data'],

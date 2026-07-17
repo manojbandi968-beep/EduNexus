@@ -101,17 +101,26 @@ export default function TeacherDashboard() {
   const [attendanceMarked, setAttendanceMarked] = useState(false);
   const [events, setEvents] = useState<CollegeEvent[]>([]);
 
+  const { data: dashboardData, isLoading, error } = useQuery<TeacherDashboardData>({
+    queryKey: ['teacher-dashboard'],
+    queryFn: () => fetch('/api/teacher/dashboard').then((r) => r.json()),
+    refetchInterval: 60000,
+  });
+
   useEffect(() => {
     if (dashboardData?.isAttendanceMarkedToday !== undefined) {
       setAttendanceMarked(dashboardData.isAttendanceMarkedToday);
     }
   }, [dashboardData?.isAttendanceMarkedToday]);
 
+  const [greeting, setGreeting] = useState('Welcome');
+
   useEffect(() => {
     const fetchEvents = async () => {
       try {
-        const data = await getDocuments<CollegeEvent>(COLLECTIONS.EVENTS);
-        setEvents(data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5));
+        const data = await getDocuments<any>(COLLECTIONS.EVENTS);
+        const formattedData = data.map(evt => ({ ...evt, date: evt.startDate || evt.date })) as CollegeEvent[];
+        setEvents(formattedData.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5));
       } catch (err) {
         console.error('Failed to fetch events:', err);
       }
@@ -119,14 +128,12 @@ export default function TeacherDashboard() {
     fetchEvents();
   }, []);
 
-  const currentHour = new Date().getHours();
-  const greeting = currentHour < 12 ? 'Good morning' : currentHour < 17 ? 'Good afternoon' : 'Good evening';
+  useEffect(() => {
+    const currentHour = new Date().getHours();
+    setGreeting(currentHour < 12 ? 'Good morning' : currentHour < 17 ? 'Good afternoon' : 'Good evening');
+  }, []);
 
-  const { data: dashboardData, isLoading, error } = useQuery<TeacherDashboardData>({
-    queryKey: ['teacher-dashboard'],
-    queryFn: () => fetch('/api/teacher/dashboard').then((r) => r.json()),
-    refetchInterval: 60000,
-  });
+
 
   useSocketEvent(socket ? SOCKET_EVENTS.ATTENDANCE_UPDATED : '', (payload: any) => {
     if (payload.teacherId === user?.uid) {
@@ -766,7 +773,9 @@ export default function TeacherDashboard() {
                       <p className="text-sm font-medium">{evt.title}</p>
                       <div className="flex items-center gap-2 mt-1">
                         <span className="text-xs text-muted-foreground">
-                          {new Date(evt.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                          {evt.date && !isNaN(new Date(evt.date).getTime()) 
+                            ? new Date(evt.date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }) 
+                            : 'TBA'}
                         </span>
                         <span className="text-[10px] uppercase font-bold tracking-wider opacity-60 bg-muted px-1.5 py-0.5 rounded">
                           {evt.type}
