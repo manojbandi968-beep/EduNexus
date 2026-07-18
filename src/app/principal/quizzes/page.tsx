@@ -45,36 +45,31 @@ interface Quiz {
   students: number;
 }
 
-const mockQuizzes: Quiz[] = [
-  { id: '1', name: 'Calculus Test 5', subject: 'Mathematics', teacher: 'Dr. Ramesh Kumar', section: 'MPC-A', stream: 'MPC', date: '2025-07-05', avgScore: 76, students: 58 },
-  { id: '2', name: 'Integration Quiz', subject: 'Mathematics', teacher: 'Dr. Ramesh Kumar', section: 'MPC-B', stream: 'MPC', date: '2025-07-04', avgScore: 72, students: 55 },
-  { id: '3', name: 'Matrices Test', subject: 'Mathematics', teacher: 'Dr. Ramesh Kumar', section: 'MPC-C', stream: 'MPC', date: '2025-07-03', avgScore: 81, students: 60 },
-  { id: '4', name: 'Kinematics Quiz', subject: 'Physics', teacher: 'Prof. S. Lakshmi', section: 'MPC-A', stream: 'MPC', date: '2025-07-05', avgScore: 68, students: 58 },
-  { id: '5', name: 'Organic Chem Test', subject: 'Chemistry', teacher: 'Dr. Sunita Desai', section: 'BiPC-A', stream: 'BiPC', date: '2025-07-04', avgScore: 74, students: 48 },
-  { id: '6', name: 'Cell Biology Quiz', subject: 'Biology', teacher: 'Dr. Venkat Rao', section: 'BiPC-A', stream: 'BiPC', date: '2025-07-03', avgScore: 82, students: 50 },
-  { id: '7', name: 'Market Structures', subject: 'Commerce', teacher: 'Prof. Kavita Sharma', section: 'CEC-A', stream: 'CEC', date: '2025-07-02', avgScore: 71, students: 42 },
-  { id: '8', name: 'English Grammar', subject: 'English', teacher: 'Prof. Meera Nair', section: 'MPC-A', stream: 'MPC', date: '2025-07-01', avgScore: 79, students: 57 },
-];
+
+import { useQuery } from '@tanstack/react-query';
+import { getDocuments, COLLECTIONS } from '@/lib/firebase/firestore';
 
 export default function QuizzesPage() {
   const [search, setSearch] = useState('');
   const [filterStream, setFilterStream] = useState('all');
-  const store = useSyncExternalStore(subscribe, getData, getData);
 
-  const quizzes = [
-    ...store.quizzes.map(q => ({
-      id: q.id,
-      name: q.name,
-      subject: q.topic,
-      teacher: q.teacherName,
-      section: q.section,
-      stream: q.stream as 'MPC' | 'BiPC' | 'CEC',
-      date: q.date,
-      avgScore: q.avgScore,
-      students: q.students,
-    })),
-    ...mockQuizzes,
-  ];
+  const { data: quizzes = [], isLoading } = useQuery<Quiz[]>({
+    queryKey: ['quizzes'],
+    queryFn: async () => {
+      const data = await getDocuments(COLLECTIONS.QUIZZES);
+      return data.map((q: any) => ({
+        id: q.id,
+        name: q.name || 'Untitled Quiz',
+        subject: q.subject || q.topic || 'Unknown Subject',
+        teacher: q.teacherName || q.teacherId || 'Unknown Teacher', // Ideally join with users
+        section: q.sectionId || q.section || 'Unknown',
+        stream: q.stream as 'MPC' | 'BiPC' | 'CEC' || 'MPC',
+        date: q.date || new Date().toISOString().split('T')[0],
+        avgScore: q.classAverage || q.avgScore || 0,
+        students: q.totalStudents || q.students || 0,
+      }));
+    }
+  });
 
   const subjectAvg = quizzes.reduce<Record<string, { total: number; count: number }>>((acc, q) => {
     if (!acc[q.subject]) acc[q.subject] = { total: 0, count: 0 };

@@ -61,18 +61,7 @@ interface Student {
   status: StudentStatus;
 }
 
-const initialStudents: Student[] = [
-  { id: '1', rollNumber: 'MPC001', name: 'Aarav Sharma', stream: 'MPC', section: 'MPC-A', admissionNumber: 'ADM-2025-001', parentMobile: '+91 9876543201', studentMobile: '+91 9876543101', gender: 'male', batch: '2025-26', status: 'active' },
-  { id: '2', rollNumber: 'MPC002', name: 'Ananya Reddy', stream: 'MPC', section: 'MPC-A', admissionNumber: 'ADM-2025-002', parentMobile: '+91 9876543202', gender: 'female', batch: '2025-26', status: 'active' },
-  { id: '3', rollNumber: 'MPC003', name: 'Rahul Verma', stream: 'MPC', section: 'MPC-B', admissionNumber: 'ADM-2025-003', parentMobile: '+91 9876543203', gender: 'male', batch: '2025-26', status: 'active' },
-  { id: '4', rollNumber: 'BPC001', name: 'Sneha Patel', stream: 'BiPC', section: 'BiPC-A', admissionNumber: 'ADM-2025-004', parentMobile: '+91 9876543204', gender: 'female', batch: '2025-26', status: 'active' },
-  { id: '5', rollNumber: 'BPC002', name: 'Vikram Singh', stream: 'BiPC', section: 'BiPC-A', admissionNumber: 'ADM-2025-005', parentMobile: '+91 9876543205', gender: 'male', batch: '2025-26', status: 'inactive' },
-  { id: '6', rollNumber: 'CEC001', name: 'Priya Gupta', stream: 'CEC', section: 'CEC-A', admissionNumber: 'ADM-2025-006', parentMobile: '+91 9876543206', studentMobile: '+91 9876543106', gender: 'female', batch: '2025-26', status: 'active' },
-  { id: '7', rollNumber: 'MPC004', name: 'Arjun Nair', stream: 'MPC', section: 'MPC-C', admissionNumber: 'ADM-2025-007', parentMobile: '+91 9876543207', gender: 'male', batch: '2025-26', status: 'active' },
-  { id: '8', rollNumber: 'BPC003', name: 'Neha Joshi', stream: 'BiPC', section: 'BiPC-B', admissionNumber: 'ADM-2025-008', parentMobile: '+91 9876543208', gender: 'female', batch: '2025-26', status: 'transferred' },
-  { id: '9', rollNumber: 'CEC002', name: 'Rohit Kumar', stream: 'CEC', section: 'CEC-B', admissionNumber: 'ADM-2025-009', parentMobile: '+91 9876543209', gender: 'male', batch: '2025-26', status: 'active' },
-  { id: '10', rollNumber: 'MPC005', name: 'Divya K', stream: 'MPC', section: 'MPC-A', admissionNumber: 'ADM-2025-010', parentMobile: '+91 9876543210', gender: 'female', batch: '2025-26', status: 'active' },
-];
+
 
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -85,14 +74,75 @@ function GenderBadge({ gender }: { gender: Gender }) {
 
 const emptyStudent = { rollNumber: '', name: '', stream: '' as StreamCode, section: '', admissionNumber: '', parentMobile: '', studentMobile: '', gender: 'male' as Gender, batch: '2025-26', status: 'active' as StudentStatus };
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getDocuments, createDocument, updateDocument, deleteDocument, COLLECTIONS } from '@/lib/firebase/firestore';
+
 export default function StudentsPage() {
-  const [students, setStudents] = useState<Student[]>(initialStudents);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterStream, setFilterStream] = useState('all');
   const [filterStatus, setFilterStatus] = useState('all');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [form, setForm] = useState(emptyStudent);
+
+  const { data: students = [], isLoading } = useQuery<Student[]>({
+    queryKey: ['students'],
+    queryFn: async () => {
+      return await getDocuments<Student>(COLLECTIONS.STUDENTS);
+    }
+  });
+
+  const addMutation = useMutation({
+    mutationFn: async (newStudent: Omit<Student, 'id'>) => {
+      await createDocument(COLLECTIONS.STUDENTS, {
+        ...newStudent,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast.success('Student added successfully');
+      setDialogOpen(false);
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error('Failed to add student');
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: Partial<Student> }) => {
+      await updateDocument(COLLECTIONS.STUDENTS, id, {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast.success('Student updated successfully');
+      setDialogOpen(false);
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error('Failed to update student');
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await deleteDocument(COLLECTIONS.STUDENTS, id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['students'] });
+      toast.success('Student removed successfully');
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error('Failed to remove student');
+    }
+  });
 
   const filtered = students.filter(s => {
     const matchSearch = s.name.toLowerCase().includes(search.toLowerCase()) || s.rollNumber.toLowerCase().includes(search.toLowerCase()) || s.admissionNumber.toLowerCase().includes(search.toLowerCase());
@@ -126,14 +176,10 @@ export default function StudentsPage() {
       return;
     }
     if (editingStudent) {
-      setStudents(prev => prev.map(s => s.id === editingStudent.id ? { ...form, id: s.id } : s));
-      toast.success('Student updated');
+      updateMutation.mutate({ id: editingStudent.id, data: form });
     } else {
-      const newStudent = { ...form, id: String(Date.now()) };
-      setStudents(prev => [...prev, newStudent]);
-      toast.success('Student added');
+      addMutation.mutate(form);
     }
-    setDialogOpen(false);
   };
 
   return (
@@ -240,7 +286,7 @@ export default function StudentsPage() {
                         <DropdownMenuItem className="gap-2 rounded-lg text-xs" onClick={() => openEdit(student)}>Edit Details</DropdownMenuItem>
                         <DropdownMenuItem className="gap-2 rounded-lg text-xs"><GraduationCap className="h-3.5 w-3.5" />View Performance</DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem className="gap-2 rounded-lg text-xs text-destructive">Remove Student</DropdownMenuItem>
+                        <DropdownMenuItem className="gap-2 rounded-lg text-xs text-destructive" onClick={() => deleteMutation.mutate(student.id)}>Remove Student</DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </motion.div>

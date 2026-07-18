@@ -6,7 +6,8 @@
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, updateProfile, type User as FirebaseUser } from 'firebase/auth';
-import { auth } from '@/lib/firebase/config';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase/config';
 import { type UserRole } from '@/types';
 
 export interface AuthUser {
@@ -16,6 +17,7 @@ export interface AuthUser {
   photoURL: string | null;
   role?: UserRole;
   status?: string;
+  phone?: string;
 }
 
 interface AuthContextType {
@@ -25,6 +27,7 @@ interface AuthContextType {
   error: string | null;
   setUserRole: (role: UserRole) => void;
   updateUserDisplayName: (name: string) => Promise<void>;
+  refreshUser: (updates: Partial<AuthUser>) => void;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -34,6 +37,7 @@ const AuthContext = createContext<AuthContextType>({
   error: null,
   setUserRole: () => {},
   updateUserDisplayName: async () => {},
+  refreshUser: () => {},
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -54,20 +58,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser((prev) => (prev ? { ...prev, displayName: name } : null));
   }, []);
 
+  const refreshUser = useCallback((updates: Partial<AuthUser>) => {
+    setUser((prev) => (prev ? { ...prev, ...updates } : null));
+  }, []);
+
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(
+    let unsubscribeDoc: (() => void) | undefined;
+
+    const unsubscribeAuth = onAuthStateChanged(
       auth,
       (fbUser) => {
+        if (unsubscribeDoc) {
+          unsubscribeDoc();
+          unsubscribeDoc = undefined;
+        }
+
         if (fbUser) {
           setFirebaseUser(fbUser);
-          fbUser.getIdTokenResult(true).then((tokenResult) => {
-            setUser({
-              uid: fbUser.uid,
-              email: fbUser.email,
-              displayName: fbUser.displayName,
-              photoURL: fbUser.photoURL,
-              role: tokenResult.claims.role as UserRole,
-            });
+          
+          unsubscribeDoc = onSnapshot(doc(db, 'users', fbUser.uid), (docSnap) => {
+            if (docSnap.exists()) {
+              const data = docSnap.data();
+              setUser({
+                uid: fbUser.uid,
+                email: fbUser.email,
+                displayName: data.displayName || fbUser.displayName,
+                photoURL: data.photoURL || fbUser.photoURL,
+                role: data.role as UserRole,
+                status: data.status,
+                phone: data.phone,
+              });
+            } else {
+              fbUser.getIdTokenResult(true).then((tokenResult) => {
+                setUser({
+                  uid: fbUser.uid,
+                  email: fbUser.email,
+                  displayName: fbUser.displayName,
+                  photoURL: fbUser.photoURL,
+                  role: tokenResult.claims.role as UserRole,
+                });
+              });
+            }
+            setLoading(false);
+          }, (err) => {
+            console.error('Firestore snapshot error:', err);
             setLoading(false);
           });
         } else {
@@ -96,11 +130,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     );
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeDoc) unsubscribeDoc();
+    };
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, firebaseUser, loading, error, setUserRole, updateUserDisplayName }}>
+    <AuthContext.Provider value={{ user, firebaseUser, loading, error, setUserRole, updateUserDisplayName, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

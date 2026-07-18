@@ -53,6 +53,7 @@ export default function PrincipalLoginPage() {
           email: data.email,
           password: data.password,
           securityPin: data.securityPin,
+          rememberMe: data.rememberMe ?? true, // Default to true if somehow undefined
           userAgent: navigator.userAgent,
           timestamp: new Date().toISOString(),
         }),
@@ -229,6 +230,22 @@ export default function PrincipalLoginPage() {
                 {errors.securityPin && (
                   <p className="text-xs text-destructive">{errors.securityPin.message}</p>
                 )}
+              </div>
+
+              {/* Remember Me */}
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="rememberMe"
+                  {...register('rememberMe')}
+                  className="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary"
+                />
+                <Label
+                  htmlFor="rememberMe"
+                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Remember me
+                </Label>
               </div>
 
               {/* Submit */}

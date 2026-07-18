@@ -10,7 +10,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { XAxis, YAxis, CartesianGrid, ResponsiveContainer, Tooltip as RechartsTooltip, LineChart, Line } from 'recharts';
 import { useQuery } from '@tanstack/react-query';
 import html2canvas from 'html2canvas';
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import { toast } from 'sonner';
 
 const reportsList = [
@@ -45,19 +45,18 @@ export default function ReportsPage() {
       });
       
       const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'px',
-        format: [canvas.width, canvas.height]
-      });
+      const pdf = new jsPDF('p', 'mm', 'a4');
       
-      pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
       pdf.save('Principal_Dashboard_Report.pdf');
       
       toast.success('PDF generated successfully!', { id: 'pdf-toast' });
-    } catch (err) {
+    } catch (err: any) {
       console.error('PDF generation error:', err);
-      toast.error('Failed to generate PDF', { id: 'pdf-toast' });
+      toast.error(err.message || 'Failed to generate PDF', { id: 'pdf-toast' });
     } finally {
       setIsExporting(false);
     }

@@ -18,7 +18,7 @@ export default function MentorProfilePage() {
   const [passwordDialogOpen, setPasswordDialogOpen] = useState(false);
   const [phoneDialogOpen, setPhoneDialogOpen] = useState(false);
   const [emailDialogOpen, setEmailDialogOpen] = useState(false);
-  const [phoneNumber] = useState('+91 9876543210');
+  const phoneNumber = authUser?.phone || '+91 98765 43210';
   const [editingName, setEditingName] = useState(false);
   const [nameInput, setNameInput] = useState('');
   const email = authUser?.email || '';

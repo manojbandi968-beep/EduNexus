@@ -204,6 +204,27 @@ export interface MentorAttendance extends Timestamps {
   sectionId?: string;
 }
 
+export interface StudentAttendance extends Timestamps {
+  id: string;
+  studentId: string;
+  studentName: string;
+  rollNumber: string;
+  sectionId: string;
+  subjectId: string;
+  subjectName: string;
+  teacherId: string;
+  teacherName: string;
+  date: string; // YYYY-MM-DD
+  periodId: string;
+  periodLabel: string;
+  status: AttendanceStatus;
+  markedBy: string;
+  markedByName: string;
+  markedAt: string;
+  isSubstitution: boolean;
+  originalTeacherId?: string;
+}
+
 // ---- Quizzes ----
 
 export interface Quiz extends Timestamps {
@@ -438,6 +459,22 @@ export interface TeacherDashboardData {
   teacherName: string;
   isAttendanceMarkedToday?: boolean;
   checkInTimeToday?: string | null;
+  todayStudentAttendance?: TodayStudentAttendance[];
+}
+
+export interface TodayStudentAttendance {
+  id: string;
+  subjectId: string;
+  subjectName: string;
+  sectionId: string;
+  sectionName: string;
+  periodId: string;
+  periodLabel: string;
+  date: string;
+  present: number;
+  late: number;
+  absent: number;
+  total: number;
 }
 
 // ---- Mentor Dashboard Types ----
@@ -515,4 +552,19 @@ export interface CollegeEvent {
   createdBy: string;
   creatorName: string;
   timestamp: string;
+}
+
+// ---- Bulk Actions ----
+
+export interface BulkActionResult {
+  success: number;
+  failed: number;
+  errors: { row: number; error: string; data: Record<string, unknown> }[];
+}
+
+export interface CSVImportTemplate {
+  name: string;
+  description: string;
+  columns: { key: string; label: string; required: boolean; example: string }[];
+  sampleData: Record<string, unknown>[];
 }

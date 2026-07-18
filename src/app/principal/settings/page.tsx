@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save, Building2, MapPin, Clock, User, Phone, Mail, Camera, Shield, BadgeCheck } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/ui/page-header';
@@ -24,6 +24,18 @@ export default function SettingsPage() {
     email: user?.email || '',
     phone: '+91 98765 43210',
   });
+
+  useEffect(() => {
+    if (user) {
+      setProfile(prev => ({
+        ...prev,
+        name: user.displayName || prev.name,
+        email: user.email || prev.email,
+        phone: user.phone || prev.phone,
+      }));
+    }
+  }, [user]);
+
 
   const [form, setForm] = useState({
     collegeName: 'EduNexus Junior College',

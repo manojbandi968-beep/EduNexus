@@ -20,6 +20,7 @@ export function EmailLoginDialog({ open, onOpenChange, expectedRole }: EmailLogi
   const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -33,7 +34,7 @@ export function EmailLoginDialog({ open, onOpenChange, expectedRole }: EmailLogi
       setLoading(true);
       const user = await signInWithEmail(email, password);
       
-      const success = await createSessionCookie();
+      const success = await createSessionCookie(rememberMe);
       if (success) {
         toast.success(`Welcome back, ${user.displayName || 'User'}!`);
         onOpenChange(false);
@@ -90,6 +91,22 @@ export function EmailLoginDialog({ open, onOpenChange, expectedRole }: EmailLogi
               className="rounded-xl bg-background/50 h-11"
               disabled={loading}
             />
+          </div>
+
+          <div className="flex items-center space-x-2 pt-1">
+            <input
+              type="checkbox"
+              id="dialogRememberMe"
+              checked={rememberMe}
+              onChange={e => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded border-input bg-transparent text-primary focus:ring-primary"
+            />
+            <Label
+              htmlFor="dialogRememberMe"
+              className="text-xs font-medium leading-none"
+            >
+              Remember me
+            </Label>
           </div>
 
           <DialogFooter className="pt-4">

@@ -66,18 +66,6 @@ interface Teacher {
 
 const emptyTeacher = { name: '', email: '', phone: '', subject: '', stream: '' as 'MPC' | 'BiPC' | 'CEC', status: 'pending' as AccountStatus, assignedSections: [] as string[] };
 
-const mockTeachers: Teacher[] = [
-  { id: '1', name: 'Dr. Ramesh Kumar', email: 'ramesh@college.edu', phone: '+91 9876543210', subject: 'Mathematics', stream: 'MPC', status: 'approved', joinedDate: '2024-06-01', assignedSections: ['MPC-A', 'MPC-B', 'MPC-C'], lastLogin: '2025-07-05 09:15' },
-  { id: '2', name: 'Prof. S. Lakshmi', email: 'lakshmi@college.edu', phone: '+91 9876543211', subject: 'Physics', stream: 'MPC', status: 'approved', joinedDate: '2024-06-01', assignedSections: ['MPC-A', 'MPC-B'], lastLogin: '2025-07-04 08:30' },
-  { id: '3', name: 'Ankit Sharma', email: 'ankit@college.edu', phone: '+91 9876543212', subject: 'Physics', stream: 'MPC', status: 'pending', joinedDate: '2025-07-01', assignedSections: [] },
-  { id: '4', name: 'Priya Reddy', email: 'priya@college.edu', phone: '+91 9876543213', subject: 'Chemistry', stream: 'BiPC', status: 'pending', joinedDate: '2025-06-28', assignedSections: [] },
-  { id: '5', name: 'Dr. Venkat Rao', email: 'venkat@college.edu', phone: '+91 9876543214', subject: 'Biology', stream: 'BiPC', status: 'approved', joinedDate: '2023-08-15', assignedSections: ['BiPC-A', 'BiPC-B'], lastLogin: '2025-07-05 07:45' },
-  { id: '6', name: 'Prof. Meera Nair', email: 'meera@college.edu', phone: '+91 9876543215', subject: 'English', stream: 'MPC', status: 'approved', joinedDate: '2024-01-10', assignedSections: ['MPC-A', 'MPC-B', 'MPC-C', 'BiPC-A'], lastLogin: '2025-07-05 08:00' },
-  { id: '7', name: 'Rajesh Gupta', email: 'rajesh@college.edu', phone: '+91 9876543216', subject: 'Commerce', stream: 'CEC', status: 'rejected', joinedDate: '2025-06-25', assignedSections: [] },
-  { id: '8', name: 'Dr. Sunita Desai', email: 'sunita@college.edu', phone: '+91 9876543217', subject: 'Chemistry', stream: 'MPC', status: 'approved', joinedDate: '2023-07-01', assignedSections: ['MPC-A', 'MPC-B'], lastLogin: '2025-07-04 10:20' },
-  { id: '9', name: 'Arjun Reddy', email: 'arjun@college.edu', phone: '+91 9876543218', subject: 'Zoology', stream: 'BiPC', status: 'disabled', joinedDate: '2022-06-01', assignedSections: ['BiPC-A'], lastLogin: '2025-06-20 11:00' },
-  { id: '10', name: 'Prof. Kavita Sharma', email: 'kavita@college.edu', phone: '+91 9876543219', subject: 'Economics', stream: 'CEC', status: 'approved', joinedDate: '2024-01-15', assignedSections: ['CEC-A', 'CEC-B'], lastLogin: '2025-07-05 09:30' },
-];
 
 function getInitials(name: string) {
   return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -98,14 +86,85 @@ function StatusBadge({ status }: { status: AccountStatus }) {
   );
 }
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getDocuments, updateDocument, COLLECTIONS, whereClause } from '@/lib/firebase/firestore';
+
 export default function TeachersPage() {
-  const [teachers, setTeachers] = useState<Teacher[]>(mockTeachers);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterStream, setFilterStream] = useState<string>('all');
   const [confirmDialog, setConfirmDialog] = useState<{ type: 'approve' | 'reject' | 'disable' | 'enable'; teacher: Teacher } | null>(null);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [form, setForm] = useState(emptyTeacher);
+
+  const { data: teachers = [], isLoading } = useQuery<Teacher[]>({
+    queryKey: ['teachers'],
+    queryFn: async () => {
+      // Teachers are stored in users collection with role='teacher'
+      const data = await getDocuments(COLLECTIONS.USERS, [whereClause('role', '==', 'teacher')]);
+      return data.map((t: any) => ({
+        id: t.id,
+        name: t.fullName || t.name || 'Unknown',
+        email: t.email,
+        phone: t.phone || '',
+        subject: t.subject || '',
+        stream: t.stream || 'MPC',
+        status: t.status || 'pending',
+        joinedDate: t.createdAt ? new Date(t.createdAt).toISOString().slice(0, 10) : '',
+        assignedSections: t.assignedSections || [],
+        lastLogin: t.lastLogin,
+      }));
+    },
+  });
+
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }: { id: string, status: AccountStatus }) => {
+      await updateDocument(COLLECTIONS.USERS, id, { status, updatedAt: new Date().toISOString() });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teachers'] });
+      setConfirmDialog(null);
+    },
+    onError: (error) => {
+      toast.error('Failed to update teacher status');
+      console.error(error);
+    }
+  });
+
+  const addTeacherMutation = useMutation({
+    mutationFn: async (newTeacher: any) => {
+      // Use the registration API to create Auth user and DB document securely
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fullName: newTeacher.name,
+          email: newTeacher.email,
+          phone: newTeacher.phone,
+          subject: newTeacher.subject,
+          stream: newTeacher.stream,
+          password: 'Password@123', // Default password
+          role: 'teacher',
+          status: 'approved',
+        }),
+      });
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.error || 'Failed to add teacher');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['teachers'] });
+      toast.success('Teacher added successfully. Default password is Password@123');
+      setAddDialogOpen(false);
+      setForm(emptyTeacher);
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Failed to add teacher');
+    }
+  });
 
   const filtered = teachers.filter(t => {
     const matchSearch = t.name.toLowerCase().includes(search.toLowerCase()) || t.email.toLowerCase().includes(search.toLowerCase());
@@ -124,14 +183,20 @@ export default function TeachersPage() {
   const handleConfirm = () => {
     if (!confirmDialog) return;
     const { type, teacher } = confirmDialog;
-    const messages: Record<string, string> = {
-      approve: `${teacher.name} approved successfully`,
-      reject: `${teacher.name} rejected`,
-      disable: `${teacher.name} disabled`,
-      enable: `${teacher.name} enabled`,
-    };
-    toast.success(messages[type]);
-    setConfirmDialog(null);
+    
+    let newStatus: AccountStatus;
+    let successMessage = '';
+    
+    if (type === 'approve') { newStatus = 'approved'; successMessage = `${teacher.name} approved successfully`; }
+    else if (type === 'reject') { newStatus = 'rejected'; successMessage = `${teacher.name} rejected`; }
+    else if (type === 'disable') { newStatus = 'disabled'; successMessage = `${teacher.name} disabled`; }
+    else { newStatus = 'approved'; successMessage = `${teacher.name} enabled`; }
+
+    toast.promise(updateStatusMutation.mutateAsync({ id: teacher.id, status: newStatus }), {
+      loading: 'Updating status...',
+      success: successMessage,
+      error: 'Could not update status'
+    });
   };
 
   const openAddDialog = () => {
@@ -144,20 +209,7 @@ export default function TeachersPage() {
       toast.error('Please fill in all required fields');
       return;
     }
-    const newTeacher: Teacher = {
-      id: String(Date.now()),
-      name: form.name,
-      email: form.email,
-      phone: form.phone,
-      subject: form.subject,
-      stream: form.stream,
-      status: 'pending',
-      joinedDate: new Date().toISOString().slice(0, 10),
-      assignedSections: form.assignedSections,
-    };
-    setTeachers(prev => [newTeacher, ...prev]);
-    toast.success('Teacher added successfully');
-    setAddDialogOpen(false);
+    addTeacherMutation.mutate(form);
   };
 
   return (

@@ -10,6 +10,7 @@ export const principalLoginSchema = z.object({
   email: z.string().email('Invalid email address'),
   password: z.string().min(8, 'Password must be at least 8 characters'),
   securityPin: z.string().length(6, 'Security PIN must be 6 digits').regex(/^\d+$/, 'PIN must contain only digits'),
+  rememberMe: z.boolean().optional(),
 });
 
 export const registrationSchema = z.object({
@@ -89,6 +90,34 @@ export const mentorAttendanceSchema = z.object({
   notes: z.string().optional(),
   studentCount: z.number().min(0, 'Student count must be non-negative'),
   sectionId: z.string().optional(),
+});
+
+export const studentAttendanceSchema = z.object({
+  studentId: z.string().min(1, 'Student is required'),
+  studentName: z.string().min(1, 'Student name is required'),
+  rollNumber: z.string().min(1, 'Roll number is required'),
+  sectionId: z.string().min(1, 'Section is required'),
+  subjectId: z.string().min(1, 'Subject is required'),
+  subjectName: z.string().min(1, 'Subject name is required'),
+  periodId: z.string().min(1, 'Period is required'),
+  periodLabel: z.string().min(1, 'Period label is required'),
+  status: z.enum(['present', 'late', 'absent']),
+  isSubstitution: z.boolean().default(false),
+  originalTeacherId: z.string().optional(),
+});
+
+export const bulkStudentAttendanceSchema = z.object({
+  date: z.string().min(1, 'Date is required'),
+  sectionId: z.string().min(1, 'Section is required'),
+  subjectId: z.string().min(1, 'Subject is required'),
+  subjectName: z.string().min(1, 'Subject name is required'),
+  periodId: z.string().min(1, 'Period is required'),
+  periodLabel: z.string().min(1, 'Period label is required'),
+  teacherId: z.string().min(1, 'Teacher is required'),
+  teacherName: z.string().min(1, 'Teacher name is required'),
+  isSubstitution: z.boolean().default(false),
+  originalTeacherId: z.string().optional(),
+  records: z.array(studentAttendanceSchema).min(1, 'At least one student record required'),
 });
 
 // ---- Quiz Validations ----
@@ -206,6 +235,8 @@ export type SectionInput = z.infer<typeof sectionSchema>;
 export type TimetableEntryInput = z.infer<typeof timetableEntrySchema>;
 export type TeacherAttendanceInput = z.infer<typeof teacherAttendanceSchema>;
 export type MentorAttendanceInput = z.infer<typeof mentorAttendanceSchema>;
+export type StudentAttendanceInput = z.infer<typeof studentAttendanceSchema>;
+export type BulkStudentAttendanceInput = z.infer<typeof bulkStudentAttendanceSchema>;
 export type QuizInput = z.infer<typeof quizSchema>;
 export type QuizResultInput = z.infer<typeof quizResultSchema>;
 export type LeaveRequestInput = z.infer<typeof leaveRequestSchema>;

@@ -33,6 +33,7 @@ export const COLLECTIONS = {
   STREAMS: 'streams',
   TIMETABLES: 'timetables',
   ATTENDANCE: 'attendance',
+  STUDENT_ATTENDANCE: 'studentAttendance',
   MENTOR_ATTENDANCE: 'mentorAttendance',
   QUIZZES: 'quizzes',
   QUIZ_RESULTS: 'quizResults',

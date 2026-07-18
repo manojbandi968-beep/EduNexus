@@ -18,21 +18,29 @@ export interface SessionUser {
   photoURL?: string;
 }
 
-export async function createSession(idToken: string): Promise<boolean> {
+export async function createSession(idToken: string, rememberMe: boolean = true): Promise<boolean> {
   try {
     const auth = adminAuth();
+    // createSessionCookie requires expiresIn to be between 5 mins and 14 days.
+    // We'll set it to 5 days, but if rememberMe is false, we omit maxAge from the cookie
+    // so it becomes a browser session cookie.
     const sessionCookie = await auth.createSessionCookie(idToken, {
       expiresIn: SESSION_DURATION,
     });
 
     const cookieStore = await cookies();
-    cookieStore.set(SESSION_COOKIE_NAME, sessionCookie, {
-      maxAge: SESSION_DURATION / 1000,
+    const cookieOptions: any = {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-    });
+    };
+
+    if (rememberMe) {
+      cookieOptions.maxAge = SESSION_DURATION / 1000;
+    }
+
+    cookieStore.set(SESSION_COOKIE_NAME, sessionCookie, cookieOptions);
 
     return true;
   } catch (error) {

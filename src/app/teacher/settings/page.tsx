@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Save, User, Phone, Mail, BadgeCheck, BookOpen, Users, Calendar, MapPin } from 'lucide-react';
 import { DashboardLayout } from '@/components/layout/DashboardLayout';
 import { PageHeader } from '@/components/ui/page-header';
@@ -25,6 +25,18 @@ export default function TeacherSettings() {
     stream: 'MPC',
     sections: ['MPC-A', 'MPC-B', 'MPC-C'],
   });
+
+  useEffect(() => {
+    if (user) {
+      setProfile(prev => ({
+        ...prev,
+        name: user.displayName || prev.name,
+        email: user.email || prev.email,
+        phone: user.phone || prev.phone,
+      }));
+    }
+  }, [user]);
+
 
   const handleSave = async () => {
     if (!user?.uid) return;

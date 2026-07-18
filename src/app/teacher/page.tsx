@@ -22,6 +22,8 @@ import {
   AlertCircle,
   BarChart2,
   PartyPopper,
+  BookOpen,
+  X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -35,12 +37,12 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { toast } from 'sonner';
 import { useAuth } from '@/contexts/AuthContext';
-import { createDocument, getDocuments, COLLECTIONS } from '@/lib/firebase/firestore';
+import { createDocument, getDocuments, whereClause, COLLECTIONS } from '@/lib/firebase/firestore';
 import { getSocket, useSocket, useSocketEvent } from '@/lib/socket/client';
 import { SOCKET_EVENTS } from '@/lib/socket/events';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { cn } from '@/lib/utils';
-import type { CollegeEvent, TeacherDashboardData } from '@/types';
+import type { CollegeEvent, TeacherDashboardData, StudentAttendance, TimeSlot } from '@/types';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -69,6 +71,20 @@ export default function TeacherDashboard() {
     queryKey: ['teacher-dashboard'],
     queryFn: () => fetch('/api/teacher/dashboard').then((r) => r.json()),
     refetchInterval: 60000,
+  });
+
+  // Fetch today's student attendance for teacher's classes
+  const { data: studentAttendanceData } = useQuery<StudentAttendance[]>({
+    queryKey: ['teacher-student-attendance', user?.uid],
+    queryFn: async () => {
+      if (!user?.uid) return [];
+      const today = new Date().toISOString().split('T')[0];
+      const response = await fetch(`/api/student-attendance?date=${today}&teacherId=${user.uid}`);
+      const data = await response.json();
+      return data.records || [];
+    },
+    refetchInterval: 60000,
+    enabled: !!user?.uid,
   });
 
   useEffect(() => {
@@ -521,6 +537,73 @@ export default function TeacherDashboard() {
                     </motion.div>
                   ))}
                 </div>
+              </CardContent>
+            </Card>
+          </motion.div>
+
+          <motion.div
+            initial={{ y: 20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            transition={{ delay: 0.55 }}
+          >
+            <Card className="glass-card border-0">
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Users className="h-4 w-4 text-primary" />
+                  Today's Student Attendance
+                </CardTitle>
+                <CardDescription>Attendance marked for your classes today</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {dashboardData?.todayStudentAttendance && dashboardData.todayStudentAttendance.length > 0 ? (
+                  <div className="space-y-3">
+                    {dashboardData.todayStudentAttendance.map((item, i) => (
+                      <motion.div
+                        key={item.id || i}
+                        initial={{ x: -10, opacity: 0 }}
+                        animate={{ x: 0, opacity: 1 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="flex items-center justify-between rounded-xl bg-muted/30 p-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-primary/10">
+                            <BookOpen className="h-4 w-4 text-primary" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-medium">{item.subjectName}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {item.sectionName} • {item.periodLabel} • {item.date}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20">
+                            <CheckCircle2 className="mr-1 h-3 w-3" />{item.present}
+                          </Badge>
+                          <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/20">
+                            <Clock className="mr-1 h-3 w-3" />{item.late}
+                          </Badge>
+                          <Badge variant="outline" className="bg-red-500/10 text-red-600 border-red-500/20">
+                            <X className="mr-1 h-3 w-3" />{item.absent}
+                          </Badge>
+                          <Badge variant="outline" className="text-muted-foreground">
+                            {item.total} total
+                          </Badge>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center gap-2 py-8 text-muted-foreground">
+                    <Users className="h-10 w-10 opacity-30" />
+                    <p className="text-sm">No student attendance marked today</p>
+                    <p className="text-xs">Mark attendance from the Attendance page</p>
+                    <Button variant="outline" size="sm" className="mt-2 gap-2 rounded-xl" onClick={() => router.push('/teacher/attendance')}>
+                      <Users className="h-3.5 w-3.5" />
+                      Go to Attendance
+                    </Button>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </motion.div>

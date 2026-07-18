@@ -37,7 +37,10 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useSocket, useSocketEvent } from '@/lib/socket/client';
 import { SOCKET_EVENTS } from '@/lib/socket/events';
 
-function getInitials(name: string) { return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2); }
+function getInitials(name?: string) {
+  if (!name) return '??';
+  return name.split(' ').map(n => n[0]).filter(Boolean).join('').toUpperCase().slice(0, 2);
+}
 
 const statusColors = { present: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', late: 'bg-amber-500/10 text-amber-600 border-amber-500/20', absent: 'bg-red-500/10 text-red-600 border-red-500/20' };
 
@@ -126,7 +129,7 @@ export default function AttendancePage() {
                 </Select>
               </div>
               <div className="space-y-2">
-                {fetchRecords.map((r: any, i: number) => (
+                {filtered.map((r: any, i: number) => (
                   <motion.div
                     key={r.id || i}
                     initial={{ y: 5, opacity: 0 }}

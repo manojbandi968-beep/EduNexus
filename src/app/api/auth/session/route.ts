@@ -4,9 +4,11 @@ import { cookies } from 'next/headers';
 
 const SESSION_DURATION = 60 * 60 * 24 * 5 * 1000; // 5 days
 
+import { createSession } from '@/lib/auth/session';
+
 export async function POST(request: NextRequest) {
   try {
-    const { idToken } = await request.json();
+    const { idToken, rememberMe = true } = await request.json();
 
     if (!idToken) {
       return NextResponse.json({ error: 'Missing idToken' }, { status: 400 });
@@ -19,18 +21,10 @@ export async function POST(request: NextRequest) {
     const userRecord = await auth.getUser(decodedToken.uid);
     const role = userRecord.customClaims?.role || 'teacher';
 
-    const sessionCookie = await auth.createSessionCookie(idToken, {
-      expiresIn: SESSION_DURATION,
-    });
-
-    const cookieStore = await cookies();
-    cookieStore.set('__session', sessionCookie, {
-      maxAge: SESSION_DURATION / 1000,
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      path: '/',
-    });
+    const created = await createSession(idToken, rememberMe);
+    if (!created) {
+       return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+    }
 
     const userAgent = request.headers.get('user-agent') || '';
     const ipAddress = request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || 'unknown';

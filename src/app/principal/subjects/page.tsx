@@ -44,31 +44,81 @@ interface Subject {
   teacherCount: number;
 }
 
-const initialSubjects: Subject[] = [
-  { id: '1', name: 'Mathematics', code: 'MATH', streams: ['MPC'], teacherCount: 3 },
-  { id: '2', name: 'Physics', code: 'PHY', streams: ['MPC', 'BiPC'], teacherCount: 4 },
-  { id: '3', name: 'Chemistry', code: 'CHEM', streams: ['MPC', 'BiPC'], teacherCount: 3 },
-  { id: '4', name: 'Biology', code: 'BIO', streams: ['BiPC'], teacherCount: 2 },
-  { id: '5', name: 'Botany', code: 'BOT', streams: ['BiPC'], teacherCount: 1 },
-  { id: '6', name: 'Zoology', code: 'ZOO', streams: ['BiPC'], teacherCount: 1 },
-  { id: '7', name: 'Commerce', code: 'COM', streams: ['CEC'], teacherCount: 2 },
-  { id: '8', name: 'Economics', code: 'ECO', streams: ['CEC'], teacherCount: 2 },
-  { id: '9', name: 'Civics', code: 'CIV', streams: ['CEC'], teacherCount: 1 },
-  { id: '10', name: 'English', code: 'ENG', streams: ['MPC', 'BiPC', 'CEC'], teacherCount: 2 },
-  { id: '11', name: 'Sanskrit', code: 'SAN', streams: ['MPC', 'BiPC', 'CEC'], teacherCount: 1 },
-];
+
 
 const streamColors: Record<StreamCode, string> = { MPC: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20', BiPC: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20', CEC: 'bg-amber-500/10 text-amber-600 border-amber-500/20' };
 
 const emptySubject = { name: '', code: '', streams: [] as StreamCode[] };
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getDocuments, createDocument, updateDocument, deleteDocument, COLLECTIONS } from '@/lib/firebase/firestore';
+
 export default function SubjectsPage() {
-  const [subjects, setSubjects] = useState<Subject[]>(initialSubjects);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Subject | null>(null);
   const [form, setForm] = useState(emptySubject);
   const [deleteConfirm, setDeleteConfirm] = useState<Subject | null>(null);
+
+  const { data: subjects = [], isLoading } = useQuery<Subject[]>({
+    queryKey: ['subjects'],
+    queryFn: async () => {
+      return await getDocuments<Subject>(COLLECTIONS.SUBJECTS);
+    }
+  });
+
+  const addMutation = useMutation({
+    mutationFn: async (newSubject: Omit<Subject, 'id'>) => {
+      await createDocument(COLLECTIONS.SUBJECTS, {
+        ...newSubject,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] });
+      toast.success('Subject added successfully');
+      setDialogOpen(false);
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error('Failed to add subject');
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: Partial<Subject> }) => {
+      await updateDocument(COLLECTIONS.SUBJECTS, id, {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] });
+      toast.success('Subject updated successfully');
+      setDialogOpen(false);
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error('Failed to update subject');
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await deleteDocument(COLLECTIONS.SUBJECTS, id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['subjects'] });
+      toast.success('Subject removed successfully');
+      setDeleteConfirm(null);
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error('Failed to remove subject');
+    }
+  });
 
   const filtered = subjects.filter(s => s.name.toLowerCase().includes(search.toLowerCase()) || s.code.toLowerCase().includes(search.toLowerCase()));
 
@@ -88,20 +138,15 @@ export default function SubjectsPage() {
       return;
     }
     if (editing) {
-      setSubjects(prev => prev.map(s => s.id === editing.id ? { ...s, ...form, teacherCount: s.teacherCount } : s));
-      toast.success('Subject updated');
+      updateMutation.mutate({ id: editing.id, data: form });
     } else {
-      setSubjects(prev => [...prev, { ...form, id: String(Date.now()), teacherCount: 0 }]);
-      toast.success('Subject added');
+      addMutation.mutate({ ...form, teacherCount: 0 });
     }
-    setDialogOpen(false);
   };
 
   const handleDelete = () => {
     if (!deleteConfirm) return;
-    setSubjects(prev => prev.filter(s => s.id !== deleteConfirm.id));
-    toast.success(`${deleteConfirm.name} deleted`);
-    setDeleteConfirm(null);
+    deleteMutation.mutate(deleteConfirm.id);
   };
 
   return (

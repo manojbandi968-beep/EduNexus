@@ -9,7 +9,7 @@ const LOCKOUT_MINUTES = 15;
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { email, password, securityPin, userAgent } = body;
+    const { email, password, securityPin, userAgent, rememberMe = true } = body;
 
     const auth = adminAuth();
     const db = adminDb();
@@ -97,7 +97,7 @@ export async function POST(request: NextRequest) {
     await auth.setCustomUserClaims(localId, { role: 'principal' });
 
     // Create proper Firebase session cookie
-    const created = await createSession(idToken);
+    const created = await createSession(idToken, rememberMe);
     if (!created) {
       return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
     }

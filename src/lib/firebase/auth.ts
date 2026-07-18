@@ -88,14 +88,14 @@ export async function getIdToken(): Promise<string | null> {
 
 // ---- Create Session ----
 
-export async function createSessionCookie(): Promise<boolean> {
+export async function createSessionCookie(rememberMe: boolean = true): Promise<boolean> {
   const idToken = await getIdToken();
   if (!idToken) return false;
 
   const response = await fetch('/api/auth/session', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ idToken }),
+    body: JSON.stringify({ idToken, rememberMe }),
   });
 
   return response.ok;

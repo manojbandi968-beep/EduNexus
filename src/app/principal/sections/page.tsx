@@ -53,15 +53,7 @@ interface Section {
   classTeacher?: string;
 }
 
-const initialSections: Section[] = [
-  { id: '1', name: 'MPC-A', streamCode: 'MPC', capacity: 60, currentStrength: 58, classTeacher: 'Dr. Ramesh Kumar' },
-  { id: '2', name: 'MPC-B', streamCode: 'MPC', capacity: 60, currentStrength: 55, classTeacher: 'Prof. S. Lakshmi' },
-  { id: '3', name: 'MPC-C', streamCode: 'MPC', capacity: 60, currentStrength: 60, classTeacher: 'Dr. Sunita Desai' },
-  { id: '4', name: 'BiPC-A', streamCode: 'BiPC', capacity: 60, currentStrength: 52, classTeacher: 'Dr. Venkat Rao' },
-  { id: '5', name: 'BiPC-B', streamCode: 'BiPC', capacity: 60, currentStrength: 48 },
-  { id: '6', name: 'CEC-A', streamCode: 'CEC', capacity: 60, currentStrength: 45, classTeacher: 'Prof. Kavita Sharma' },
-  { id: '7', name: 'CEC-B', streamCode: 'CEC', capacity: 60, currentStrength: 40 },
-];
+
 
 const streamColors: Record<StreamCode, string> = {
   MPC: 'bg-indigo-500/10 text-indigo-600 border-indigo-500/20',
@@ -71,13 +63,75 @@ const streamColors: Record<StreamCode, string> = {
 
 const emptySection = { name: '', streamCode: '' as StreamCode, capacity: 60 };
 
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getDocuments, createDocument, updateDocument, deleteDocument, COLLECTIONS } from '@/lib/firebase/firestore';
+
 export default function SectionsPage() {
-  const [sections, setSections] = useState<Section[]>(initialSections);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Section | null>(null);
   const [form, setForm] = useState(emptySection);
   const [deleteConfirm, setDeleteConfirm] = useState<Section | null>(null);
+
+  const { data: sections = [], isLoading } = useQuery<Section[]>({
+    queryKey: ['sections'],
+    queryFn: async () => {
+      return await getDocuments<Section>(COLLECTIONS.SECTIONS);
+    }
+  });
+
+  const addMutation = useMutation({
+    mutationFn: async (newSection: Omit<Section, 'id'>) => {
+      await createDocument(COLLECTIONS.SECTIONS, {
+        ...newSection,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sections'] });
+      toast.success('Section added successfully');
+      setDialogOpen(false);
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error('Failed to add section');
+    }
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: string, data: Partial<Section> }) => {
+      await updateDocument(COLLECTIONS.SECTIONS, id, {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sections'] });
+      toast.success('Section updated successfully');
+      setDialogOpen(false);
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error('Failed to update section');
+    }
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      await deleteDocument(COLLECTIONS.SECTIONS, id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sections'] });
+      toast.success('Section removed successfully');
+      setDeleteConfirm(null);
+    },
+    onError: (err) => {
+      console.error(err);
+      toast.error('Failed to remove section');
+    }
+  });
 
   const filtered = sections.filter(s => s.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -90,20 +144,15 @@ export default function SectionsPage() {
       return;
     }
     if (editing) {
-      setSections(prev => prev.map(s => s.id === editing.id ? { ...s, ...form, currentStrength: s.currentStrength } : s));
-      toast.success('Section updated');
+      updateMutation.mutate({ id: editing.id, data: form });
     } else {
-      setSections(prev => [...prev, { ...form, id: String(Date.now()), currentStrength: 0 }]);
-      toast.success('Section added');
+      addMutation.mutate({ ...form, currentStrength: 0 });
     }
-    setDialogOpen(false);
   };
 
   const handleDelete = () => {
     if (!deleteConfirm) return;
-    setSections(prev => prev.filter(s => s.id !== deleteConfirm.id));
-    toast.success(`${deleteConfirm.name} deleted`);
-    setDeleteConfirm(null);
+    deleteMutation.mutate(deleteConfirm.id);
   };
 
   return (
